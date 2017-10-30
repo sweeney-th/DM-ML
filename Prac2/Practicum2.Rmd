@@ -1,0 +1,102 @@
+---
+title: "Practicum 2"
+author: "Thadryan Sweeney"
+date: "October 29, 2017"
+output: html_notebook
+---
+
+
+```{R g}
+x <- "Hello World"
+x
+```
+
+```{R QUESTION 3}
+library(caret)
+
+# get titanic data 
+td <- read.csv("titanic_data.csv")
+str(td)
+colnames(td)
+```
+
+
+```{R some shit}
+# divide the data into train/test
+td.test <- td[1:445, ]
+td.train <- td[446:890, ]
+
+# This looks good enough for now
+#prop.table(table(td.train$Survived))
+#prop.table(table(td.test$Survived))
+
+
+m <- lm(Survived ~ PassengerId + Pclass + Sex + Age + SibSp + Parch +
+          Fare + Embarked, data = td.train)
+
+pred <- predict(m, data = td.test)
+
+td.test$Pred <- round(predict(m, td.test), digits = 0)
+
+summary(m)
+length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
+```
+```{R step 2}
+
+m <- lm(Survived ~ Pclass + Sex + Age + SibSp, data = td.train)
+
+pred <- predict(m, data = td.test)
+
+td.test$Pred <- round(predict(m, td.test), digits = 0)
+
+summary(m)
+length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
+
+```
+
+
+```{R rpart }
+library(rpart)
+# let's try the same thing again 
+m <- rpart(Survived ~ Pclass + Sex + Age + SibSp, data = td.train)
+
+pred <- predict(m, data = td.test)
+
+td.test$Pred <- round(predict(m, td.test), digits = 0)
+
+summary(m)
+length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
+
+
+```
+
+```{R Attempting feature engineering }
+
+# some of this was taken from a blog post
+td.test$Pred <- NULL
+combi <- rbind(td.train, td.test)
+
+combi$Name <- as.character(combi$Name)
+combi$Title <- sapply(combi$Name, FUN=function(x) {strsplit(x, split='[,.]')[[1]][2]})
+combi$Title <- factor(combi$Title)
+
+combi$Prime <- 0
+#combi[which(combi$Age < 30 & combi$Age >= 10)] <- 1
+# > train$Fare2[train$Fare < 20 & train$Fare >= 10] <- '10-20'
+
+td.test <- combi[1:445, ]
+td.train <- combi[446:890, ]
+
+library(rpart)
+# let's try the same thing again 
+m <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Title, data = td.train)
+
+pred <- predict(m, data = td.test)
+
+td.test$Pred <- round(predict(m, td.test), digits = 0)
+
+summary(m)
+length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
+
+
+```
