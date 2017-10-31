@@ -4,32 +4,131 @@ author: "Thadryan Sweeney"
 date: "October 29, 2017"
 output: html_notebook
 ---
+~~~~~~~~~
+ASK ABOUT:
+Pvalue in titanic model
 
+```{R Census}
 
-```{R g}
-x <- "Hello World"
-x
+# get the data
+cd <- read.csv("census.csv", stringsAsFactors = FALSE, header = TRUE)
+str(cd)
+
+# get rid of the ?
+cd[cd == "?"] <- NA
+
+# let's see what happens if we remove all with NAs using the complete cases function
+c.cd <- cd[complete.cases(cd), ]
+
+# get rid of all these spaces everywhere for no reason using the most complicated
+# solution ever devised to solve a simple problem 
+c.cd <- as.data.frame(apply(c.cd, 2, function(y) as.character(gsub(" ", "", y))))
 ```
 
-```{R QUESTION 3}
-library(caret)
+
+
+```{R probs}
+# prior probability person x is black is .2 (there are 5 races)
+
+ap.black <- length(which(c.cd$race == "Black"))
+ap.black
+
+cases <- nrow(c.cd)
+
+white <- length(which(c.cd$race == "White"))
+x.white <- length(which(c.cd$race != "White"))
+
+p.white <- white/cases
+p.white
+
+fiftyK <- length(which(c.cd$X50K == ">50K"))
+xfiftyK <- length(which(c.cd$X50K != ">50K"))
+
+p.fiftyK <- fiftyK/cases
+
+white.50 <- length(which(c.cd$race == "White" & c.cd$X50K == ">50K"))
+
+#n.50plus <- length(which(c.cd == ">50"))
+
+p.white.50 <- white.50/(length(which(c.cd$X50K == ">50K")))
+p.white.50
+
+```
+
+```{R manage data}
+
+
+
+```
+
+```{R sums}
+# get rid of all these spaces everywhere for no reason
+apply(c.cd, 2, function(y) as.character(gsub(" ", "", y)))
+
+# prior probability person x is black is .2 (there are 5 races)
+p.black <- length(which(c.cd$race == "Black"))
+p.black
+```
+
+```{R analyze data}
+
+library(psych)
+pairs.panels(cd[c("sex", "fnlwgt")])
+
+```
+
+When we accept complete samples only, we are left with 30161 out of 32560, costing us 2399 or  around 7% of our data. Given that the set is so large, I will go with complete records only
+
+str(c.cd)
+
+
+
+The titanic dataset is a classic practice problem for data work. It is often approached with random forests, but an also be adressed with linear regression, which is what we will do in this analysis.
+
+```{R QUESTION 3 - Titanic}
 
 # get titanic data 
 td <- read.csv("titanic_data.csv")
 str(td)
-colnames(td)
 ```
 
+We will still start with a simple split and see how it works, if the proportions are off, we can use a more advanced split, like from the caret package
 
-```{R some shit}
+```{R Train and Validate}
+
 # divide the data into train/test
 td.test <- td[1:445, ]
 td.train <- td[446:890, ]
 
-# This looks good enough for now
-#prop.table(table(td.train$Survived))
-#prop.table(table(td.test$Survived))
+# See if the survivors are distributed fairly 
+prop.table(table(td.train$Survived))
+prop.table(table(td.test$Survived))
+```
 
+You can also use caret partitioning
+
+```{R Train and Validate2}
+
+# get the caret library 
+library(caret)
+
+# create a partition
+td.partition <- createDataPartition(y = td$Survived, p = 0.50, list = FALSE)
+
+# split the data with it
+td.trainCaret <- td[td.partition, ]
+td.testCaret <- td[-td.partition, ]
+
+prop.table(table(td.train$Survived))
+prop.table(table(td.test$Survived))
+prop.table(table(td.trainCaret$Survived))
+prop.table(table(td.testCaret$Survived))
+
+```
+
+
+
+```{R some shit}
 
 m <- lm(Survived ~ PassengerId + Pclass + Sex + Age + SibSp + Parch +
           Fare + Embarked, data = td.train)
@@ -41,6 +140,9 @@ td.test$Pred <- round(predict(m, td.test), digits = 0)
 summary(m)
 length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
 ```
+
+Using all the data produced a pretty bad result. A lot of titorials on this dataset start by simply guessing that everyone dies or that all the men die with no fine modeling whatsoever, and this preforms about as well a they do. We can look at the summary though, to find where some key patterns emerged, and we will use them to build something a little more refined. 
+
 ```{R step 2}
 
 m <- lm(Survived ~ Pclass + Sex + Age + SibSp, data = td.train)
@@ -49,43 +151,44 @@ pred <- predict(m, data = td.test)
 
 td.test$Pred <- round(predict(m, td.test), digits = 0)
 
-summary(m)
 length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
-
 ```
 
+While the input was considerably more refined, the gain was fairly small, so I will try a new model we used on some recent homework.
 
 ```{R rpart }
 library(rpart)
-# let's try the same thing again 
+
+# let's try the same thing again with this model
 m <- rpart(Survived ~ Pclass + Sex + Age + SibSp, data = td.train)
 
 pred <- predict(m, data = td.test)
 
+# we're rounding because this is binomal
 td.test$Pred <- round(predict(m, td.test), digits = 0)
 
-summary(m)
 length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
-
-
 ```
+
+This method seems to offer a considerable boost, so we will stick with it
 
 ```{R Attempting feature engineering }
 
 # some of this was taken from a blog post
+# create a partition
+
 td.test$Pred <- NULL
-combi <- rbind(td.train, td.test)
+merged <- rbind(td.train, td.test)
 
-combi$Name <- as.character(combi$Name)
-combi$Title <- sapply(combi$Name, FUN=function(x) {strsplit(x, split='[,.]')[[1]][2]})
-combi$Title <- factor(combi$Title)
+merged$Name <- as.character(merged$Name)
+merged$Title <- sapply(merged$Name, FUN=function(x) {strsplit(x, split='[,.]')[[1]][2]})
+merged$Title <- factor(merged$Title)
 
-combi$Prime <- 0
 #combi[which(combi$Age < 30 & combi$Age >= 10)] <- 1
 # > train$Fare2[train$Fare < 20 & train$Fare >= 10] <- '10-20'
 
-td.test <- combi[1:445, ]
-td.train <- combi[446:890, ]
+td.test <- merged[1:445, ]
+td.train <- merged[446:890, ]
 
 library(rpart)
 # let's try the same thing again 
@@ -95,8 +198,5 @@ pred <- predict(m, data = td.test)
 
 td.test$Pred <- round(predict(m, td.test), digits = 0)
 
-summary(m)
 length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
-
-
 ```
