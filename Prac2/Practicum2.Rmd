@@ -27,31 +27,50 @@ c.cd <- as.data.frame(apply(c.cd, 2, function(y) as.character(gsub(" ", "", y)))
 
 
 
-```{R probs}
-# prior probability person x is black is .2 (there are 5 races)
+```{R test model}
+####################################################################################################                                                                                                 #
+#  This is a test run to test the probability that a person makes 50k+ give that they are white.  #
+#                                                                                                 #
+#         The formula is:                                                                         #
+#                                                                                                 #
+#                     p.50k.white = ( (p.white.50k)(p.50k) / (p.white) )                          #
+#                                                                                                 #
+###################################################################################################
 
-ap.black <- length(which(c.cd$race == "Black"))
-ap.black
-
+# number of cases
 cases <- nrow(c.cd)
 
+# extract white entries
 white <- length(which(c.cd$race == "White"))
-x.white <- length(which(c.cd$race != "White"))
 
+# pure probability somone is white give nothing else
 p.white <- white/cases
-p.white
 
+# get 50k+ entries 
 fiftyK <- length(which(c.cd$X50K == ">50K"))
-xfiftyK <- length(which(c.cd$X50K != ">50K"))
 
+# probability somone makes > 50k given nothing else
 p.fiftyK <- fiftyK/cases
 
+# get entries that are white and make over 50k
 white.50 <- length(which(c.cd$race == "White" & c.cd$X50K == ">50K"))
 
-#n.50plus <- length(which(c.cd == ">50"))
-
+# probability somone is white and makes more than 50k given nothing else
 p.white.50 <- white.50/(length(which(c.cd$X50K == ">50K")))
-p.white.50
+
+# define a function to do the calculation
+nb.class <- function( whiteGivenFifty, fiftyPlus, white )
+{
+  # execute formula 
+  prediction <- ( (whiteGivenFifty)*(fiftyPlus) / (white) )
+  
+  return(round(prediction, digits = 0))
+  
+}
+
+# test the function 
+answer <- nb.class( whiteGivenFifty = p.white.50, fiftyPlus = p.fiftyK, white = p.white )
+answer
 
 ```
 
