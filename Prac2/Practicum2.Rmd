@@ -4,31 +4,48 @@ author: "Thadryan Sweeney"
 date: "October 29, 2017"
 output: html_notebook
 ---
-~~~~~~~~~
-ASK ABOUT:
-Pvalue in titanic model
+
+~~~~~Question 1~~~~~
+
+(10 pts) Create a frequency and then a likelihood table for the categorical features in the data set. Build your own Naive Bayes classifier for those features.
+
+(30 pts)Predict the binomial class membership for a white male adult who is a federal government worker with a bachelors degree who immigrated from Ireland. Ignore any other features in your model. You must build your own Naive Bayes Classifier -- you may not use a package.
 
 ```{R Census}
 
 # get the data
 cd <- read.csv("census.csv", stringsAsFactors = FALSE, header = TRUE)
 str(cd)
+```
 
+Looking around the dataset with head(), str(), etc, shows that missing values are denoted with a ?. There is nothing inherently problematic with this, but R has special features for dealing with NA, so we will convert to that. I notice there is also a space in front of the ? somtimes.
+
+```{R clear}
 # get rid of the ?
 cd[cd == "?"] <- NA
+cd[cd == " ?"] <- NA
+```
+
+The most obvious answer to dealing with missing data is to remove the rows. This isn't always feasible, however, depending on the size of the set and the amount of rows missing. Let's see if we can get away with the purist move or if we need to try to impute.
+
+```{R What to do with missing values?}
 
 # let's see what happens if we remove all with NAs using the complete cases function
 c.cd <- cd[complete.cases(cd), ]
 
 # get rid of all these spaces everywhere for no reason using the most complicated
-# solution ever devised to solve a simple problem 
 c.cd <- as.data.frame(apply(c.cd, 2, function(y) as.character(gsub(" ", "", y))))
+nrow(cd)
+nrow(c.cd)
+nrow(cd) - nrow(c.cd)
 ```
+ 
+This is a pretty big dataset; even after purging all but the perfectly complete rows, we are looking at staying over 30k. I am going to make the judgment call that this will be enough, and worth the price of having "pure" data. It's less than 8% of a huge set.
 
-
+In terms of making NB classifier, I'll start with a prototype. I'll predict the same feature, but only try one variable to get started.
 
 ```{R test model}
-####################################################################################################                                                                                                 #
+###################################################################################################
 #  This is a test run to test the probability that a person makes 50k+ give that they are white.  #
 #                                                                                                 #
 #         The formula is:                                                                         #
@@ -64,36 +81,114 @@ nb.class <- function( whiteGivenFifty, fiftyPlus, white )
   # execute formula 
   prediction <- ( (whiteGivenFifty)*(fiftyPlus) / (white) )
   
-  return(round(prediction, digits = 0))
-  
+  return(prediction)
 }
 
 # test the function 
 answer <- nb.class( whiteGivenFifty = p.white.50, fiftyPlus = p.fiftyK, white = p.white )
 answer
-
 ```
 
-```{R manage data}
+This makes sense intuiitively. The chance of anyone randomly making 50K+ is around .24. This is very close to that, with perhaps a slight bump for being white. Note the last part was not a truly Niave Bayes. This will be slightly different givent the niave independence assumptions.
 
+The format will be a function that takes seven arguments. What to predict, the dataset with which to predict it, and the five "givens" specified in the problem. It will predict the first column, given the next five.
 
+```{R expanded model}
 
+# get the data from the
+d <- data.frame(c.cd$X50K, c.cd$sex, c.cd$race, c.cd$workclass, c.cd$education, c.cd$native.country)
+
+# define function as ~predict x given 5 thing~
+x.given.5 <- function(pred, given1, given2, given3, given4, given5, dataset)
+{
+  
+  # number of times the prediction occurs naturally 
+  p.pred <- length(which(dataset[1] == pred))
+  
+  # make sure we're getting a dataset
+  d <- as.data.frame(dataset)
+  cases <- nrow(dataset)
+    
+  # we will have it predict the first column given the next 5
+  # note that "given1" is [2] because the target is in [1]
+  
+  # get the numbers where are givens are true and not true
+  g1 <- length(which(dataset[2] == given1))
+  x.g1 <- length(which(dataset[2] != given1))
+  
+  # find their probability 
+  p.g1 <- g1/cases
+  px.g1 <- x.g1/cases
+
+  # repeat this pattern for the ret of the givens.
+  # given more time, one might write functions to smooth this slightly
+  g2 <- length(which(dataset[3] == given2))
+  x.g2 <- length(which(dataset[3] != given2))
+  
+  p.g2 <- g2/cases
+  px.g2 <- x.g2/cases  
+  
+  # for the third...
+  g3 <- length(which(dataset[4] == given3))
+  x.g3 <- length(which(dataset[4] != given3))
+  
+  p.g3 <- g3/cases
+  px.g3 <- x.g3/cases  
+
+  # for the fouth...
+  g4 <- length(which(dataset[5] == given4))
+  x.g4 <- length(which(dataset[5] != given4))
+  
+  p.g4 <- g4/cases
+  px.g4 <- x.g4/cases
+  
+  # for the final
+  g5 <- length(which(dataset[6] == given5))
+  x.g5 <- length(which(dataset[6] != given5))
+  
+  p.g5 <- g5/cases
+  px.g5 <- x.g5/cases
+
+  # execute the niave bayes formula 
+  numerator <- p.g1 * p.g2 * p.g3 * p.g4 * p.g5 * p.pred
+  denominator <- px.g1 * px.g2 *  px.g3 *  px.g4 *  px.g5
+
+  answer <- numerator/(numerator + denominator)
+  
+  return(answer) 
+}
+
+# call the formula 
+a <- x.given.5(pred = ">50K", given1 = "Male", given2 = "White", given3 = "Federal-gov",
+               given4 = "Bachelors", given5 = "Ireland", dataset = d)
+
+b <- pure.prob50 <- length(which(c.cd$X50K == ">50K"))/cases
+
+print("Given our factors:")
+a
+print("Pure Probability:")
+b
 ```
 
-```{R sums}
-# get rid of all these spaces everywhere for no reason
-apply(c.cd, 2, function(y) as.character(gsub(" ", "", y)))
+This makes sense in the light of the last model with race only: working a steady govenment job, being male, and having a college education further bump up the odds of somone breaking the 50k mark.
 
-# prior probability person x is black is .2 (there are 5 races)
-p.black <- length(which(c.cd$race == "Black"))
-p.black
-```
+(20 pts) Perform 10-fold cross validation on your algorithm to tune it and report the final accuracy results.
+
+~~~~~Question 2~~~~~
+
+
+
+
+
+
+
+
+
 
 ```{R analyze data}
 
 library(psych)
 pairs.panels(cd[c("sex", "fnlwgt")])
-
 ```
 
 When we accept complete samples only, we are left with 30161 out of 32560, costing us 2399 or  around 7% of our data. Given that the set is so large, I will go with complete records only
@@ -101,8 +196,10 @@ When we accept complete samples only, we are left with 30161 out of 32560, costi
 str(c.cd)
 
 
+~~~~~Question 3~~~~~
 
 The titanic dataset is a classic practice problem for data work. It is often approached with random forests, but an also be adressed with linear regression, which is what we will do in this analysis.
+
 
 ```{R QUESTION 3 - Titanic}
 
@@ -111,7 +208,9 @@ td <- read.csv("titanic_data.csv")
 str(td)
 ```
 
-We will still start with a simple split and see how it works, if the proportions are off, we can use a more advanced split, like from the caret package
+(5 pts) Divide the provided Titanic Survival Data into two subsets: a training data set and a test data set. Use whatever strategy you believe it best. Justify your answer.
+
+We will still start with a simple split and see how it works, if the proportions are off, we can use a more advanced split, like from the caret package.
 
 ```{R Train and Validate}
 
@@ -124,7 +223,7 @@ prop.table(table(td.train$Survived))
 prop.table(table(td.test$Survived))
 ```
 
-You can also use caret partitioning
+You can also use caret partitioning:
 
 ```{R Train and Validate2}
 
@@ -138,31 +237,34 @@ td.partition <- createDataPartition(y = td$Survived, p = 0.50, list = FALSE)
 td.trainCaret <- td[td.partition, ]
 td.testCaret <- td[-td.partition, ]
 
-prop.table(table(td.train$Survived))
-prop.table(table(td.test$Survived))
+# observe proportions 
 prop.table(table(td.trainCaret$Survived))
 prop.table(table(td.testCaret$Survived))
-
 ```
 
+I am choosing to use the simple split for this question. In terms of justifying my answer, I ran the analysis with each method and the results were very close, with a slight advantage to the simple split. I also looked at the prop tables and the distributions, at least in terms of survival, were very similar. Given that one is easier, had similar proportions, and a slightly better result, I am proceeding with it. Note that this might not be the case in all datasets and applying simply splits to some datasets, like ones that have been sorted based on some criteria you are not aware of can completely undermine your model. Looking through the data first and perhaps trying different meothds are considered due dilligence for datawork in many cases.
 
+(15 pts) Construct a logistic regression model to predict the probability of a passenger surviving the Titanic accident. Test the statistical significance of all parameters and eliminate those that have a p-value < 0.05.
 
-```{R some shit}
+```{R simple model}
 
+# create a linear model
 m <- lm(Survived ~ PassengerId + Pclass + Sex + Age + SibSp + Parch +
           Fare + Embarked, data = td.train)
 
+# apply it
 pred <- predict(m, data = td.test)
 
+# round to binomial answers
 td.test$Pred <- round(predict(m, td.test), digits = 0)
 
 summary(m)
 length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
 ```
 
-Using all the data produced a pretty bad result. A lot of titorials on this dataset start by simply guessing that everyone dies or that all the men die with no fine modeling whatsoever, and this preforms about as well a they do. We can look at the summary though, to find where some key patterns emerged, and we will use them to build something a little more refined. 
+Using all the data produced a pretty bad result. A lot of tutorials on this dataset start by simply guessing that everyone dies or that all the men die with no fine modeling whatsoever, and this preforms about as well a they do. We can look at the summary though, to find where some key patterns emerged, and we will use them to build something a little more refined. After looking through the summary, I have selected the p-value significant factors. Cutting out the others reduced some of the noise and offers some improvment.
 
-```{R step 2}
+```{R simple model step 2}
 
 m <- lm(Survived ~ Pclass + Sex + Age + SibSp, data = td.train)
 
@@ -173,43 +275,60 @@ td.test$Pred <- round(predict(m, td.test), digits = 0)
 length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
 ```
 
-While the input was considerably more refined, the gain was fairly small, so I will try a new model we used on some recent homework.
+While the input was considerably more refined, the gain was fairly small, so I will try a new model we used on some recent homework. It can be found in the rpart library.
 
 ```{R rpart }
+
 library(rpart)
 
 # let's try the same thing again with this model
 m <- rpart(Survived ~ Pclass + Sex + Age + SibSp, data = td.train)
 
+# make a prediciton
 pred <- predict(m, data = td.test)
 
 # we're rounding because this is binomal
 td.test$Pred <- round(predict(m, td.test), digits = 0)
 
+# see comparison
 length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
 ```
 
-This method seems to offer a considerable boost, so we will stick with it
+This method seems to offer a considerable boost, so we will stick with it. It's a regression tree model, so I will also use the lm to do more typical logistic regression as specified in the homework I just couldn't help experiement.
 
-```{R Attempting feature engineering }
+One aspect of data science that is often explored with this data set is feature engineering. This is the process of extrapolating new columns from ones that are already there. This is often said to be where the art data meets the science, and even small amounts of thoughtful feature engineering can offer a considerable boost. We've seen that the Pclass feature is of considerable importance, and this gives us a clue as to where to look for more hidden features. In the titanic data, the title of the passenger is embedded in their name. With titles and millitary ranks almost certainly tied to socioeconomic status, they might be useful to our model.
 
-# some of this was taken from a blog post
-# create a partition
+It is important to note than we need to engineer the validation dataset in the same way we engineer the test set (the model will not run if it sees there is a Title column in one and not the other). Rather than use a bunch of "boilerplate" code, it is common praactice to "Stack" the two sets on top of one another and then split then back up. 
 
+note: the inspiration behind this cell as well of a few lines of the code are taken/modified from a handful of titanic data science lessons.
+
+(10 pts) Test the model against the test data set and determine its prediction accuracy (as a percentage correct).
+
+```{R Title feature engineering }
+
+# remove the old predicitons
 td.test$Pred <- NULL
+td.test$Pred2 <- NULL
+
+# stack the data
 merged <- rbind(td.train, td.test)
 
+#merged <- as.data.frame(apply(merged, 2, function(y) as.character(gsub(" ", "", y))))
+
+# change the namesto characters 
 merged$Name <- as.character(merged$Name)
-merged$Title <- sapply(merged$Name, FUN=function(x) {strsplit(x, split='[,.]')[[1]][2]})
+
+# split the names on spaces, periods, commas, etc, acces them by index, stores them in a new column
+merged$Title <- sapply(merged$Name, FUN = function(x) {strsplit(x, split='[,.]')[[1]][2]})
+
+
+# refactor the column
 merged$Title <- factor(merged$Title)
 
-#combi[which(combi$Age < 30 & combi$Age >= 10)] <- 1
-# > train$Fare2[train$Fare < 20 & train$Fare >= 10] <- '10-20'
-
+# split them back up
 td.test <- merged[1:445, ]
 td.train <- merged[446:890, ]
 
-library(rpart)
 # let's try the same thing again 
 m <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Title, data = td.train)
 
@@ -217,5 +336,36 @@ pred <- predict(m, data = td.test)
 
 td.test$Pred <- round(predict(m, td.test), digits = 0)
 
+print("Rpart Accuracy:")
 length(which(td.test$Pred == td.test$Survived))/nrow(td.test)
+
+
+m2 <- lm(Survived ~ Pclass + Sex + Age + SibSp + Title, data = td.train)
+
+pred2 <- predict(m, data = td.test)
+
+td.test$Pred2 <- round(predict(m, td.test), digits = 0)
+
+print("lm Accuracy")
+length(which(td.test$Pred2 == td.test$Survived))/nrow(td.test)
 ```
+
+(2 pts) State the model as a regression equation.
+
+Coefficients:
+ (Intercept)        Pclass       Sexmale           Age         SibSp      Title Dr  Title Master  
+    1.403290     -0.144703     -1.095895     -0.004067     -0.113119      0.173237      0.887614  
+  Title Miss     Title Mme      Title Mr     Title Mrs      Title Ms     Title Rev  
+   -0.216547     -0.160972      0.343970     -0.094576            NA      0.219015 
+   
+   1.403290 - Pclass(0.144703) - Sexmale(1.095895 ) -Age(0.004067) - SibSp(0.113119) + Title Dr(0.173237)
+   + Title Master(0.887614) - Miss(0.216547) + Mr(0.343970) - Mrs(0.094576) + Rev(0.219015)
+ 
+ 
+~~~~~Question 4~~~~~
+
+(10 pts) Elaborate on the use of kNN and Naive Bayes for data imputation. Explain in reasonable detail how you would use these algorithms to impute missing data and why it can work.
+
+
+
+   
