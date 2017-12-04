@@ -62,7 +62,6 @@ def analyze_tweet(tweet):
 	for item in sentences:
 		sentences_word_count += (len(item.split(" ")))
 	mean_word_count = float(sentences_word_count)/float(len(sentences))
-	print(mean_word_count)
 	
 	# store results in dictionary
 	results["Words"] = len(word_list)
@@ -77,7 +76,7 @@ def analyze_tweet(tweet):
 	results["Colon"] = colons
 	results["Semi-colons"] = semi_colons
 	results["Number of sentences"] = number_of_sentences
-	results
+	results["Mean sentence length"] = mean_word_count
 	
 
 	return results
