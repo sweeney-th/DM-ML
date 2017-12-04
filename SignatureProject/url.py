@@ -45,21 +45,25 @@ def analyze_tweet(tweet):
 	# this has been modified from a consesus approach on stack overflow
 	# it iterates through the text and stop at a ".", ":", "?". "!".
 	#clean_text = re.sub(" ", "", tweet_text)
-	sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!|\:)(\s|[A-Z].*)', tweet)
+	sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!|\:)(\s|[A-Z].*)', tweet_text)
 
+	# remove empty strings from sentences - some '' and ' ' were counted as sentences
 	for item in sentences:
 		if len(item) == 0:
 			sentences.remove(item)
 		if item == ' ':
 			sentences.remove(item)
 	
+	# get the number of sentences
 	number_of_sentences = len([sentence for sentence in sentences if len(sentence) != 0])
-	print(sentences)
-	print(number_of_sentences)
-	
-	
-		
 
+	
+	sentences_word_count = 0 
+	for item in sentences:
+		sentences_word_count += (len(item.split(" ")))
+	mean_word_count = float(sentences_word_count)/float(len(sentences))
+	print(mean_word_count)
+	
 	# store results in dictionary
 	results["Words"] = len(word_list)
 	results["Hashtags"] = hashtag_count
@@ -73,6 +77,8 @@ def analyze_tweet(tweet):
 	results["Colon"] = colons
 	results["Semi-colons"] = semi_colons
 	results["Number of sentences"] = number_of_sentences
+	results
+	
 
 	return results
 
