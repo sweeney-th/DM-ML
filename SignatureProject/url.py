@@ -4,7 +4,7 @@ s = "If we stand together, there's nothing we can't do! Make sure you're ready t
 
 def analyze_tweet(tweet):
 	
-	# empty array for results
+	# empty dict for results
 	results = {}
 
 	# split tweet on spaces
@@ -25,9 +25,9 @@ def analyze_tweet(tweet):
 	
 	# determine the average word lenth
 	total_word_lengths = 0 
-	for item in words:
+	for item in word_list:
 		total_word_lengths += len(item)
-	mean_word_length = float(total_word_lengths)/float(len(words))
+	mean_word_length = float(total_word_lengths)/float(len(word_list))
 
 	# count various syntactic and punctuation features
 	commas = tweet.count(",")
@@ -37,21 +37,25 @@ def analyze_tweet(tweet):
 	colons = tweet.count(":")
 	semi_colons = tweet.count(";")
 	
-	# find the number of sentences
+	###find the number of sentences
 	
 	# start with a the words only tweet (join the words only list on spaces)
 	tweet_text = " ".join(word_list)
 	
 	# this has been modified from a consesus approach on stack overflow
 	# it iterates through the text and stop at a ".", ":", "?". "!".
-	sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!|\:)(\s|[A-Z].*)', tweet_text)
+	#clean_text = re.sub(" ", "", tweet_text)
+	sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!|\:)(\s|[A-Z].*)', tweet)
+
+	for item in sentences:
+		if len(item) == 0:
+			sentences.remove(item)
+		if item == ' ':
+			sentences.remove(item)
 	
-	number_of_sentences = len(sentences)
-	
-	total_sentence_length = 0
-	for item in number_of_sentences:
-		total_sentence_length += len(item)
-	mean_sentence_length = float(total_sentence_length)/float(len(sentences))
+	number_of_sentences = len([sentence for sentence in sentences if len(sentence) != 0])
+	print(sentences)
+	print(number_of_sentences)
 	
 	
 		
@@ -69,7 +73,6 @@ def analyze_tweet(tweet):
 	results["Colon"] = colons
 	results["Semi-colons"] = semi_colons
 	results["Number of sentences"] = number_of_sentences
-	results["Mean sentence length"] = mean_sentence_length
 
 	return results
 
@@ -78,7 +81,3 @@ data = analyze_tweet(s)
 #for item in data:
 #	print(item, data[item])
 
-sent = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|\!|\:)(\s|[A-Z].*)', s)
-
-rint("Tweet Words")
-	print(tweet_words)
