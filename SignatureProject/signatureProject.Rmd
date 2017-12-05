@@ -1,0 +1,47 @@
+---
+author: "Thadryan Sweeney"
+title: "DMML Signature Assignment"
+output: html_notebook
+---
+
+```{R Load the data}
+
+# get the data, check the number of rows
+data <- read.csv("engineered_tweet_data.csv", header = TRUE, stringsAsFactors = FALSE)
+nrow(data)
+```
+
+
+```{R Inspect the data}
+
+# see how many records we lose is we use complete only 
+data <- data[complete.cases(data), ]
+nrow(data)
+
+# assure we have a reasonable distribution 
+prop.table(table(data$handle))
+
+# divide the tweets by candidate for inspection
+hc.tweets <- data[which(data$handle == "HillaryClinton"), ]
+dt.tweets <- data[which(data$handle == "realDonaldTrump"), ]
+```
+
+# Summative statistics 
+
+### Average sentence length
+
+```{R Average sentence length}
+
+# average word length
+mean(hc.tweets$Mean_sentence_length)
+mean(dt.tweets$Mean_sentence_length)
+```
+
+### Average word length
+
+```{R Average }
+
+# average word length
+mean(hc.tweets$Mean_word_length)
+mean(dt.tweets$Mean_word_length)
+```
