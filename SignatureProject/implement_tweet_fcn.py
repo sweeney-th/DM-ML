@@ -1,6 +1,7 @@
 from tweet_analyzer import get_metrics
 import csv
 
+# this script implements the get metrics function described in "tweet_analyzer.py"
 # open file of tweets after initial review
 with open('tweets2.csv') as infile:
 	raw_data = csv.reader(infile)
