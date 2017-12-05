@@ -3,8 +3,8 @@ import re
 """
 
 Author: Thadryan Sweeney, Bioinformatics student, Northeastern University
-Class:  Introduction to Data Mining and Machine Learning
-Usage:  Engineer 14 complementary features for the kaggle reviewed dataset "Hillary Clinton and Donald Trump Tweets" https://www.kaggle.com/benhamner/clinton-trump-tweets
+Class:  Introduction to Data Mining and Machine Learning with Dr. Martin Schedlbauer
+Usage:  Engineer 14 complementary features for the kaggle reviewed dataset "Hillary Clinton and Donald Trump Tweets" (URL below)
 Notes:  This project started with 'manual' review of the dataset in libre office calc, where several features were removed
 	    by simple deletion of row (URLs, id numbers, etc)
 Python: Python 3.5.3 (default, Jan 19 2017, 14:11:04) [GCC 6.3.0 20170118] on linux 
@@ -12,11 +12,12 @@ Python: Python 3.5.3 (default, Jan 19 2017, 14:11:04) [GCC 6.3.0 20170118] on li
         Description:	Debian GNU/Linux 9.2 (stretch)
         Release:	9.2
         Codename:	stretch
+        Kernel: 4.9.0-4-amd64
 
 This function extracts numerous metrics from tweets such as number of sentences, average sentence length, 
 and the presence and quantity of various syntactic and punctuation features. It also finds features of
 technological interest like number of URLs and @ signs. A complete list of the features is at the bottom
-of the page
+of the page. The original dataset can be found here: https://www.kaggle.com/benhamner/clinton-trump-tweets
 
 """
 

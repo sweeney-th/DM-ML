@@ -3,7 +3,7 @@ import re
 def analyze_tweet(tweet):
 	
 	# empty dict for results
-	results = {}
+	results = []
 
 	# split tweet on spaces
 	strings = tweet.split(" ")	
@@ -75,19 +75,19 @@ def analyze_tweet(tweet):
 	semi_colons = tweet_text.count(";")
 	
 	# store results in dictionary
-	results["Words"] = len(word_list)
-	results["Hashtags"] = hashtag_count
-	results["At_signs"] = at_count
-	results["URLs"] = url_count
-	results["Words_in_caps"] = all_caps_count
-	results["Mean_word_length"] = mean_word_length
-	results["Commas"] = commas
-	results["Periods"] = periods
-	results["Excamation_points"] = exclamation_points
-	results["Question_marks"] = question_marks
-	results["Colons"] = colons
-	results["Semi-colons"] = semi_colons
-	results["Number_of_sentences"] = number_of_sentences
-	results["Mean_sentence_length"] = mean_word_count
+	results.append(len(word_list)) # Words
+	results.append(hashtag_count) # Hashtags
+	results.append(at_count) # At_signs
+	results.append(url_count) # URLs
+	results.append(all_caps_count) # Words_in_caps
+	results.append(mean_word_length) # Mean_word_length
+	results.append(commas) # Commas
+	results.append(periods) # Periods
+	results.append(exclamation_points) # Excamation_points
+	results.append(question_marks) # Question_marks
+	results.append(colons) # Colons
+	results.append(semi_colons) # Semi-colons
+	results.append(number_of_sentences) # Number_of_sentences
+	results.append(mean_word_count) # Mean_sentence_length
 	
 	return results
