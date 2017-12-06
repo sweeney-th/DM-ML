@@ -475,6 +475,15 @@ length(which(test$vote == test$handle))/nrow(test)
 
 
 
+
+
+
+
+
+
+
+
+
 # Support Vector Machine Model 
 
 Next we will try an SVM model. We already have our train/test partitions and our dataset is primed for numeric analysis, so we can dig right in after importing the appropriate libraries.
