@@ -72,7 +72,7 @@ barplot(fav_counts, names = c("Clinton", "Trump"), xlab = "Candidate", ylab = "A
                                                                              col = "BLUE")
 ```
 
-```{R numeric}
+```{R Create numeric dataset}
 
 num.data <- data
 
@@ -103,79 +103,125 @@ str(num.data)
 ```
 
 
-```{R test}
+```{R Partition Data}
 
-# copy of data
-d <- num.data
-# import libraries 
 library(caret)
-library(kernlab)
+
+# set seed 
+set.seed(867.5309)
 
 # create index for partitioning 
-trainIndex <- createDataPartition(d$handle, p = 0.5, list = FALSE)
+trainIndex <- createDataPartition(num.data$handle, p = 0.5, list = FALSE)
 
 # entries in the index are train, the ones that aren't are test
-svm.train <- d[trainIndex, ]
-svm.test <- d[-trainIndex, ]
+train <- num.data[trainIndex, ]
+train <- train[-3053, ]   # we have an odd numer of samples, some models reject this
 
-# create SVM predicting y based on partitions 
-svm <- ksvm(handle ~ ., data = svm.train, kernel = "rbfdot")
+test <- num.data[-trainIndex, ]
+```
+
+
+Now that we are equipped with a numeric dataset, we can start applying some preliminary models to see what strategies might get good results for our dataset.
+
+# Linear Regression for Prediciton and Exploration
+
+Firstly, we will try a linear regression model to see if we can get good predictions and hints as to which features might be the most valuable 
+
+```{R linear exploration}
+
+# we will be using the rmse() function throughout this analysis
+library(Metrics)
+
+# establish a linear model 
+lin <- lm(handle ~., data = train)
+
+# use the model to make predictions 
+test$lin.pred <- round(predict(lin, data = test))
+
+# evaluate performace by simple accuracy and rmse
+length(which(test$lin.pred == test$handle))/nrow(test) # simple accuracy
+rmse(test$lin.pred, test$handle) # RMSE
+```
+
+These are quite underwhelming; it doesn't bode well for a model if the simple accuracy can be confused for its RMSE. But the reason I included it is because a summary of the model will give us a good idea of which variable are statistically significant. We could, of course, try a few different techniques to improve the regression model, but given the lackluster performance we'll try some other methods first as I suspect some will be more promising out-of-the-box and we can revisit it if needed. In practice, the p-values given in the summary were of as much interest to me as the results.
+
+```{R P-Values in the LR model}
+
+# summary of the LRM
+summary(lin)
+```
+
+This readout provides an excellent readout of features useful in the prediction of the author of the tweet. As noted in the key, the "." and "*" characters dictate the significance to the model. It should be noted that these were considered significant to a model that did not result in useful predictions in practice, but it is useful as a place to start. 
+
+# Support Vector Machine Model 
+
+Next we will try an SVM model. We already have our train/test partitions and our dataset is primed for numeric analysis, so we can dig right in after importing the appropriate libraries.
+
+```{R SVM model}
+
+# import library
+library(kernlab)
+
+# remove the old prediction 
+lin.pred <- NULL
+
+# create SVM predicting handle based on partitions 
+svm <- ksvm(handle ~., data = train, kernel = "rbfdot") # the bug is from here!
 
 # use it to make predictions
-svm.test$pred <- round(predict(svm, svm.test), digits = 0)
+test$svm.raw.pred <- predict(svm, test)
+test$svm.pred <- round(test$svm.raw.pred, digits = 0)
 
-# examine the accuracy 
-length(which(svm.test$pred == svm.test$handle))/nrow(svm.test)
+### examine the performance 
+# simple accuracy
+length(which(test$svm.pred == test$handle))/nrow(test)
+
+# rmse
+rmse(test$svm.pred, test$handle)
+```
+
+With an accuracy of just over 80% and a sub 0.5 RMSE on the first pass, this model shows much more potential. Given these findings, we'll spend a little more time evaluating the model to see if we want to invest the time to tune it. 
+
+### AUC for the SVM model
+
+```{R More detailed investigation of the SVM model}
+
+# get libraries for AUC analysis
+library(ROCR)
+
+# create an ROC object to get the ROC
+svm.pred.obj <- prediction(predictions = as.numeric(test$svm.pred), labels = factor(test$handle))
+
+# evaluate the performace of the object "true positive rates" and "false positive rates"
+perf <- performance(svm.pred.obj, measure = "tpr", x.measure = "fpr")
+
+# plot the results 
+plot(perf, main = "ROC curve for SVM model", col = "blue", lwd = 3)
+abline(a = 0, b = 1, lwd =2, lty = 2)
+```
+
+This is a helpful visual, but is best complemented with a quantitative representation.
+
+```{R SVM performance 2}
+
+# create object for AUC results 
+svm.perf.metrics <- performance(svm.pred.obj, measure = "auc")
+unlist(svm.perf.metrics@y.values)
+```
+
+Based on typical interpretation of this figure, our model just squeaks into the "Excellent/good" range (this figure approximates letter grades and is presented as a heuristic in our text book).
+
+We now have three metrics of varrying levels of sophistication putting the SVM model somewhere between fair and excellent, so we'll officially use this as one of our three for the assignment. It is possible we can still squeeze some performace out of this approach before moving on however.
+
+### Tuning the SVM
+
+```{R Tuning the SVM}
+
+#tuned.svm <- train(handle ~., data = train, method = "svmRadial")
+
 ```
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# import libraries 
-library(caret)
-library(kernlab)
-
-# create index for partitioning 
-trainIndex <- createDataPartition(raw_data$y, p = 0.5, list = FALSE)
-
-# entries in the index are train, the ones that aren't are test
-svm.train <- raw_data[trainIndex, ]
-svm.test <- raw_data[-trainIndex, ]
-
-# create SVM predicting y based on partitions 
-svm <- ksvm(y ~ ., data = svm.train, kernel = "rbfdot")
-
-# use it to make predictions
-svm.test$pred <- predict(svm, svm.test)
-
-# examine the accuracy 
-length(which(svm.test$pred == svm.test$y))/nrow(svm.test)
-
-# any missing info?
-sum(is.na(hd))
 
