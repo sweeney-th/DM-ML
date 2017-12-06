@@ -8,7 +8,7 @@ output: html_notebook
 
 # get the data, check the number of rows
 data <- read.csv("engineered_tweet_data.csv", header = TRUE, stringsAsFactors = FALSE)
-nrow(data)
+str(data)
 ```
 
 
@@ -45,3 +45,137 @@ mean(dt.tweets$Mean_sentence_length)
 mean(hc.tweets$Mean_word_length)
 mean(dt.tweets$Mean_word_length)
 ```
+
+```{R Retweet proportions}
+
+# prop table of retweets
+prop.table(table(hc.tweets$is_retweet))
+prop.table(table(dt.tweets$is_retweet))
+```
+
+
+
+```{R Use of quotes?}
+
+# prop table of retweets
+prop.table(table(hc.tweets$is_quote_status))
+prop.table(table(dt.tweets$is_quote_status))
+```
+
+```{R Favorite couts}
+
+hc.meanfav <- mean(as.numeric(hc.tweets$favorite_count))
+dt.meanfav <- mean(as.numeric(dt.tweets$favorite_count))
+
+fav_counts <- c(hc.meanfav, dt.meanfav)
+barplot(fav_counts, names = c("Clinton", "Trump"), xlab = "Candidate", ylab = "Av. Favs.", 
+                                                                             col = "BLUE")
+```
+
+```{R numeric}
+
+num.data <- data
+
+num.data$text <- NULL
+
+num.data$handle[which(num.data$handle == "HillaryClinton") ] <- 1
+num.data$handle[which(num.data$handle == "realDonaldTrump") ] <- 0
+
+num.data$is_retweet[which((num.data$is_retweet) == "True")] <- 1
+num.data$is_retweet[which((num.data$is_retweet) == "False")] <- 0
+
+num.data$is_quote_status[which((num.data$is_quote_status) == "True")] <- 1
+num.data$is_quote_status[which((num.data$is_quote_status) == "False")] <- 0
+
+num.data$truncated[which((num.data$truncated) == "True")] <- 1
+num.data$truncated[which((num.data$truncated) == "False")] <- 0
+
+num.data$lang <- as.numeric(factor(num.data$lang))
+num.data$original_author <- as.numeric(factor(num.data$original_author))
+num.data$in_reply_to_screen_name <- as.numeric(factor(num.data$in_reply_to_screen_name))
+
+for (i in 1:ncol(num.data) )
+{
+  num.data[,i] <- as.numeric(num.data[,i])
+}
+
+str(num.data)
+```
+
+
+```{R test}
+
+# copy of data
+d <- num.data
+# import libraries 
+library(caret)
+library(kernlab)
+
+# create index for partitioning 
+trainIndex <- createDataPartition(d$handle, p = 0.5, list = FALSE)
+
+# entries in the index are train, the ones that aren't are test
+svm.train <- d[trainIndex, ]
+svm.test <- d[-trainIndex, ]
+
+# create SVM predicting y based on partitions 
+svm <- ksvm(handle ~ ., data = svm.train, kernel = "rbfdot")
+
+# use it to make predictions
+svm.test$pred <- round(predict(svm, svm.test), digits = 0)
+
+# examine the accuracy 
+length(which(svm.test$pred == svm.test$handle))/nrow(svm.test)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# import libraries 
+library(caret)
+library(kernlab)
+
+# create index for partitioning 
+trainIndex <- createDataPartition(raw_data$y, p = 0.5, list = FALSE)
+
+# entries in the index are train, the ones that aren't are test
+svm.train <- raw_data[trainIndex, ]
+svm.test <- raw_data[-trainIndex, ]
+
+# create SVM predicting y based on partitions 
+svm <- ksvm(y ~ ., data = svm.train, kernel = "rbfdot")
+
+# use it to make predictions
+svm.test$pred <- predict(svm, svm.test)
+
+# examine the accuracy 
+length(which(svm.test$pred == svm.test$y))/nrow(svm.test)
+
+# any missing info?
+sum(is.na(hd))
+
