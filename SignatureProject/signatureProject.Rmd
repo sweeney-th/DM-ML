@@ -433,12 +433,21 @@ test$knn.pred <- as.numeric(factor(predict(tuned.knn, test)))
 test$nnet <- as.numeric(factor(predict(tuned.nnet, test)))
 test$rf.pred <- as.numeric(factor(predict(tuned.rf, test)))
 test$rf.pred.v2 <- test$rf.pred
+test$vote <- 0
 
+Mode <- function(x) 
+{
+  uniq.x <- unique(x)
+  uniq.x[which.max(tabulate(match(x, uniq.x)))]
+}
 
-#test$vote <- names(which.max(table((c(test$knn.pred, test$nnet, test$rf.pred,
-#                                              test$rf.pred, test$rf.pred)))))
-#test$vote <- as.factor(factor(test$vote))
+for ( i in 1:nrow(test) )
+{
+  test[i,28] <- Mode(c(test[i,24], test[i,25], test[i,26], test[i,27]))
+}
 
+test$handle <- as.numeric(test$handle)
+                
 length(which(test$vote == test$handle))/nrow(test)
 ```
 
