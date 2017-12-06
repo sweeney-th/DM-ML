@@ -98,7 +98,6 @@ for (i in 1:ncol(num.data) )
 {
   num.data[,i] <- as.numeric(num.data[,i])
 }
-
 str(num.data)
 ```
 
@@ -118,6 +117,9 @@ train <- num.data[trainIndex, ]
 train <- train[-3053, ]   # we have an odd numer of samples, some models reject this
 
 test <- num.data[-trainIndex, ]
+
+
+
 ```
 
 
@@ -215,13 +217,129 @@ We now have three metrics of varrying levels of sophistication putting the SVM m
 
 ### Tuning the SVM
 
-```{R Tuning the SVM}
+```{R Tuning the SVM, eval=FALSE, include=FALSE}
 
-#tuned.svm <- train(handle ~., data = train, method = "svmRadial")
+train$handle <- as.factor(train$handle)
+test$handle <- as.factor(test$handle)
 
+tuned.svm <- train(handle ~., data = train, method = "svmRadial")
+```
+
+### The k-NN Model
+
+The k-NN model is a venerated approach based on euclidian distance. It doesn't technically produce a model; it simply compares new data to eperical oservations it has for refference, but can often compete with more sophisticated models and is worth a try for numerical data classification tasks.
+
+```{R the k-NN}
+
+# this will require factored outcomes
+train$handle <- as.factor(train$handle)
+test$handle <- as.factor(test$handle)
+
+# create a caret based knn model
+knn <- train(handle ~., data = train, method = "knn")
+knn
+```
+
+We can now look at how it will work in context
+
+```{R Evaluate k-NN}
+
+# apply the model to the testing set
+knn.pred <- predict(knn, test)
+
+# see how it did
+length(which(knn.pred == test$handle))/nrow(test)
+rmse(as.numeric(knn.pred), as.numeric(test$handle))
+```
+
+This is a fairly good start. It's basically on par with the SVM already, so it is certainly worth considering and taking the time to tune.
+```{R Tuning k-NN}
+
+ctrl <- trainControl(method = "cv", number = 10, selectionFunction = "oneSE")
+tuned.knn <- train(handle ~., data = test, method = "knn", trControl = ctrl)
+tuned.knn
+```
+```{R Evaluating the tuned k-NN}
+
+# apply the model to the testing set
+tuned.knn.pred <- predict(tuned.knn, test)
+
+# see how it did
+length(which(tuned.knn.pred == test$handle))/nrow(test)
+rmse(as.numeric(tuned.knn.pred), as.numeric(test$handle))
+```
+
+We can use the same approach to further our investigation of our k-NN model.
+
+```{R k-NN AUC}
+
+# create an ROC object to get the ROC
+knn.pred.obj <- prediction(predictions = as.numeric(tuned.knn.pred), labels = factor(test$handle))
+
+# evaluate the performace of the object "true positive rates" and "false positive rates"
+perf <- performance(knn.pred.obj, measure = "tpr", x.measure = "fpr")
+
+# plot the results 
+plot(perf, main = "ROC curve for knn model", col = "green", lwd = 3)
+abline(a = 0, b = 1, lwd =2, lty = 2)
+```
+
+And the number:
+
+```{R Quantify k-NN AUC}
+
+# quantify results
+knn.perf.metrics <- performance(knn.pred.obj, measure = "auc")
+unlist(knn.perf.metrics@y.values)
 ```
 
 
+```{R Neural Network}
+
+# train a nueral net
+nnet <- train(handle ~., data = train, method = "nnet")
+
+# make predictions
+nn.pred <- predict(nnet, test)
+
+# evaluate with out metrics
+length(which(nn.pred == test$handle))/nrow(test)
+rmse(as.numeric(nn.pred), as.numeric(test$handle))
+```
+
+This is our best result so far, so let's see if we can coax anything else out of it.
+
+```{R Tuning the Neural Net}
+
+ctrl <- trainControl(method = "cv", number = 10, selectionFunction = "oneSE")
+tuned.nnet <- train(handle ~., data = test, method = "nnet", trControl = ctrl)
+
+# make predictions
+tuned.nn.pred <- predict(tuned.nnet, test)
+
+# evaluate with out metrics
+length(which(tuned.nn.pred == test$handle))/nrow(test)
+rmse(as.numeric(tuned.nn.pred), as.numeric(test$handle))
+```
 
 
+```{R Neural Net AUC}
 
+# create an ROC object to get the ROC
+tuned.nn.pred.obj <- prediction(predictions = as.numeric(tuned.nn.pred),
+                                            labels = factor(test$handle))
+
+# evaluate the performace of the object "true positive rates" and "false positive rates"
+perf <- performance(tuned.nn.pred.obj, measure = "tpr", x.measure = "fpr")
+
+# plot the results 
+plot(perf, main = "ROC curve for Neural Net model", col = "gray", lwd = 3)
+abline(a = 0, b = 1, lwd =2, lty = 2)
+```
+
+```{R Quantify Nueral Net AUC}
+
+# quantify results
+tuned.nn.perf.metrics <- performance(tuned.nn.pred.obj, measure = "auc")
+unlist(tuned.nn.perf.metrics@y.values)
+```
