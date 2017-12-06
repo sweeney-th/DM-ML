@@ -11,6 +11,7 @@ data <- read.csv("engineered_tweet_data.csv", header = TRUE, stringsAsFactors = 
 str(data)
 ```
 
+We'll now divide the dataset up by candiate so we can make a few comparisons. We will also make sure we have a fair proportion of each candidate.
 
 ```{R Inspect the data}
 
@@ -26,9 +27,11 @@ hc.tweets <- data[which(data$handle == "HillaryClinton"), ]
 dt.tweets <- data[which(data$handle == "realDonaldTrump"), ]
 ```
 
-# Summative statistics 
+# Summative statistics and Comparisons
 
-### Average sentence length
+Given that I re-engineered a lot of this dataset, I'm going to start by looking at a few simple side-by-side comparisons to make sure the features are distinguishable betweeen the candidates before trying to use them. 
+
+### Average Sentence Length
 
 ```{R Average sentence length}
 
@@ -36,6 +39,8 @@ dt.tweets <- data[which(data$handle == "realDonaldTrump"), ]
 mean(hc.tweets$Mean_sentence_length)
 mean(dt.tweets$Mean_sentence_length)
 ```
+
+There is a noticable difference in the mean sentence length, which is a good sign.
 
 ### Average word length
 
@@ -46,6 +51,10 @@ mean(hc.tweets$Mean_word_length)
 mean(dt.tweets$Mean_word_length)
 ```
 
+The difference here is likely not going to help us much. Let's keep digging. 
+
+### Retweets
+
 ```{R Retweet proportions}
 
 # prop table of retweets
@@ -53,7 +62,9 @@ prop.table(table(hc.tweets$is_retweet))
 prop.table(table(dt.tweets$is_retweet))
 ```
 
+It seems that the candidates retweet at noticably different rates. Good news for our models. 
 
+### Sharing Quotes
 
 ```{R Use of quotes?}
 
@@ -62,25 +73,52 @@ prop.table(table(hc.tweets$is_quote_status))
 prop.table(table(dt.tweets$is_quote_status))
 ```
 
+The differences in quotes retweeted seems subtle at best.
+
+### Use of ALLCAPS
+
+```{R Words in caps}
+
+# prop table of words in caps
+hc.mean.caps <- mean(hc.tweets$Words_in_caps)
+dt.mean.caps <- mean(dt.tweets$Words_in_caps)
+
+# store and plot caps data
+caps.counts <- c(hc.mean.caps, dt.mean.caps)
+barplot(caps.counts, names = c("Clinton", "Trump"), xlab = "Candidate", ylab = "Words in CAPS", col = "GREEN")
+```
+
+### Favorite Counts 
+
 ```{R Favorite couts}
 
 hc.meanfav <- mean(as.numeric(hc.tweets$favorite_count))
 dt.meanfav <- mean(as.numeric(dt.tweets$favorite_count))
 
+hc.meanfav
+dt.meanfav
 fav_counts <- c(hc.meanfav, dt.meanfav)
-barplot(fav_counts, names = c("Clinton", "Trump"), xlab = "Candidate", ylab = "Av. Favs.", 
-                                                                             col = "BLUE")
+barplot(fav_counts, names = c("Clinton", "Trump"), xlab = "Candidate", ylab = "Av. Favs.", col = "BLUE")
 ```
+
+The difference here is extremely noticable.
+
+After inspecting a handful of differences, I'm confident that the combination of previously existing and engineered features will have enough differences for a modle to sort them.
+
+We will now make a copy of the dataset to convert to numerics and factors so we can apply models to it.
 
 ```{R Create numeric dataset}
 
 num.data <- data
 
+# the text is no longer needed
 num.data$text <- NULL
 
+# binary dummy codes for Clinton and Trump
 num.data$handle[which(num.data$handle == "HillaryClinton") ] <- 1
 num.data$handle[which(num.data$handle == "realDonaldTrump") ] <- 0
 
+# simple binary codes for booleans 
 num.data$is_retweet[which((num.data$is_retweet) == "True")] <- 1
 num.data$is_retweet[which((num.data$is_retweet) == "False")] <- 0
 
@@ -90,17 +128,24 @@ num.data$is_quote_status[which((num.data$is_quote_status) == "False")] <- 0
 num.data$truncated[which((num.data$truncated) == "True")] <- 1
 num.data$truncated[which((num.data$truncated) == "False")] <- 0
 
+# numeric/factor data associated to create an ID-like structure
+# for example this will assign each language a number, each original 
+# author a number, and each "in reply" unique number
 num.data$lang <- as.numeric(factor(num.data$lang))
 num.data$original_author <- as.numeric(factor(num.data$original_author))
 num.data$in_reply_to_screen_name <- as.numeric(factor(num.data$in_reply_to_screen_name))
 
+# iterate through the dataset and convert to numeric
 for (i in 1:ncol(num.data) )
 {
   num.data[,i] <- as.numeric(num.data[,i])
 }
+
+# inspec the dataset to verify it worked the way we want it to
 str(num.data)
 ```
 
+Now that we have seen thier are patterns in the data for models to identify and converted our numbers to 
 
 ```{R Partition Data}
 
@@ -155,11 +200,201 @@ summary(lin)
 
 This readout provides an excellent readout of features useful in the prediction of the author of the tweet. As noted in the key, the "." and "*" characters dictate the significance to the model. It should be noted that these were considered significant to a model that did not result in useful predictions in practice, but it is useful as a place to start. 
 
+### The k-NN Model
+
+The k-NN model is a simple,venerated approach to numeric data based on euclidian distance, and so makes a good starting point for us. It doesn't technically produce a model; it simply compares new data to eperical oservations it has for refference, but can often compete with more sophisticated models and is worth a try for numerical data classification tasks.
+
+```{R the k-NN}
+
+# this will require factored outcomes
+train$handle <- as.factor(train$handle)
+test$handle <- as.factor(test$handle)
+
+# create a caret based knn model
+knn <- train(handle ~., data = train, method = "knn")
+knn
+```
+
+We can now look at how it will work in context.
+
+```{R Evaluate k-NN}
+
+# apply the model to the testing set
+knn.pred <- predict(knn, test)
+
+# see how it did
+length(which(knn.pred == test$handle))/nrow(test)
+rmse(as.numeric(knn.pred), as.numeric(test$handle))
+```
+
+This is a fairly good start, so we will invest the time to inspect it further and tune it. We will use the trainControl() function to manipulate tuning parameters.
+
+```{R Tuning k-NN}
+
+# define basic parameters
+ctrl <- trainControl(method = "cv", number = 10, selectionFunction = "best")
+
+tuned.knn <- train(handle ~., data = test, method = "knn", trControl = ctrl)
+tuned.knn
+```
+
+Let's evaluate the performance of out tuned k-NN model.
+
+```{R Evaluating the tuned k-NN}
+
+# apply the model to the testing set
+tuned.knn.pred <- predict(tuned.knn, test)
+
+# see how it did
+length(which(tuned.knn.pred == test$handle))/nrow(test)
+rmse(as.numeric(tuned.knn.pred), as.numeric(test$handle))
+```
+
+Our tuning pays of with a nudge in the right direction for both metics. We have some compelling evidence that we are on the right track, so let's take a look at a more detailed evaluation. We will use the ROCR package to measure the area under the curve of our models performance charted by true positives and negative. This entails created and object for the model to get some information from at then plotting it.
+
+```{R k-NN AUC}
+
+library(ROCR)
+
+# create an ROC object to get the ROC
+knn.pred.obj <- prediction(predictions = as.numeric(tuned.knn.pred), labels = factor(test$handle))
+
+# evaluate the performace of the object "true positive rates" and "false positive rates"
+perf <- performance(knn.pred.obj, measure = "tpr", x.measure = "fpr")
+
+# plot the results 
+plot(perf, main = "ROC curve for knn model", col = "green", lwd = 3)
+abline(a = 0, b = 1, lwd =2, lty = 2)
+```
+
+The further away from the midline our model gets, the better it is. The visual is helpful and suggests we are doing pretty well, but we can quantify for more accurate comparisons. This is the numeric outpu of the area under the curve.
+
+```{R Quantify k-NN AUC}
+
+# quantify results
+knn.perf.metrics <- performance(knn.pred.obj, measure = "auc")
+unlist(knn.perf.metrics@y.values)
+```
+
+The tuned k-NN easily outperformed our mostly-exploratory linear model, and readily benifited from a little tuning, so we will keep that as one of our three models for now. 
+
+# Nueral Network 
+
+Next, we will try a neural network. Neural nets operate as a layer of functions that can activate or remain dormant based on their input, and in turn relay information to another layer of functions. The parameters that we can manipulate are the number of layers and the thresholds for activation. Training the neural net produces a vast amount of output so, while this will run, I've opted to conceal the text output.
+
+```{R Train Neural Network, include=FALSE}
+
+# train a nueral net
+nnet <- train(handle ~., data = train, method = "nnet")
+```
+
+We can use our network to make predictions.
+
+```{R Neural Network Predictions}
+
+# make predictions based on our test data
+nn.pred <- predict(nnet, test)
+
+# evaluate with out metrics
+length(which(nn.pred == test$handle))/nrow(test)
+rmse(as.numeric(nn.pred), as.numeric(test$handle))
+```
+
+This is our best result so far, but let's see if we can coax anything else out of it.
+
+```{R Tuning the Neural Net}
+
+# establish control settings for the models 
+# some testing revealed that cv worked better for this model than rpeatedCV
+ctrl <- trainControl(method = "cv", number = 10, selectionFunction = "best")
+
+# created nn model 
+tuned.nnet <- train(handle ~., data = test, method = "nnet", trControl = ctrl)
+
+# make predictions
+tuned.nn.pred <- predict(tuned.nnet, test)
+
+# evaluate with our metrics
+length(which(tuned.nn.pred == test$handle))/nrow(test)
+rmse(as.numeric(tuned.nn.pred), as.numeric(test$handle))
+```
+
+Again, we see improvments based on a littl bit of tuning. To we'll evaluate the predictive power in the same way we did form the k-NN model. 
+
+```{R Neural Net AUC}
+
+# create an ROC object to get the ROC
+tuned.nn.pred.obj <- prediction(predictions = as.numeric(tuned.nn.pred), labels = factor(test$handle))
+
+# evaluate the performace of the object "true positive rates" and "false positive rates"
+perf <- performance(tuned.nn.pred.obj, measure = "tpr", x.measure = "fpr")
+
+# plot the results 
+plot(perf, main = "ROC curve for Neural Net model", col = "gray", lwd = 3)
+abline(a = 0, b = 1, lwd =2, lty = 2)
+```
+
+Finally, we see the AUC metric for the neural metwork.
+
+```{R Quantify Nueral Net AUC}
+
+# quantify results
+tuned.nn.perf.metrics <- performance(tuned.nn.pred.obj, measure = "auc")
+unlist(tuned.nn.perf.metrics@y.values)
+```
+
+
+```{R test}
+
+ctrl <- trainControl(method = "cv", number = 10, selectionFunction = "best")
+
+x <- train(handle ~., data = test, method = "rf", trControl = ctrl)
+
+# apply the model to the testing set
+x.pred <- predict(x, test)
+
+# see how it did
+length(which(x.pred == test$handle))/nrow(test)
+rmse(as.numeric(x.pred), as.numeric(test$handle))
+
+# create an ROC object to get the ROC
+tuned.x.pred.obj <- prediction(predictions = as.numeric(x.pred), labels = factor(test$handle))
+
+# evaluate the performace of the object "true positive rates" and "false positive rates"
+perf <- performance(tuned.x.pred.obj, measure = "tpr", x.measure = "fpr")
+
+# plot the results 
+plot(perf, main = "ROC curve for X model", col = "gray", lwd = 3)
+abline(a = 0, b = 1, lwd = 2, lty = 2)
+tuned.x.perf.metrics <- performance(tuned.x.pred.obj, measure = "auc")
+unlist(tuned.x.perf.metrics@y.values)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Support Vector Machine Model 
 
 Next we will try an SVM model. We already have our train/test partitions and our dataset is primed for numeric analysis, so we can dig right in after importing the appropriate libraries.
 
-```{R SVM model}
+```{R SVM model, eval=FALSE, include=FALSE}
 
 # import library
 library(kernlab)
@@ -186,7 +421,7 @@ With an accuracy of just over 80% and a sub 0.5 RMSE on the first pass, this mod
 
 ### AUC for the SVM model
 
-```{R More detailed investigation of the SVM model}
+```{R More detailed investigation of the SVM model, eval=FALSE, include=FALSE}
 
 # get libraries for AUC analysis
 library(ROCR)
@@ -204,7 +439,7 @@ abline(a = 0, b = 1, lwd =2, lty = 2)
 
 This is a helpful visual, but is best complemented with a quantitative representation.
 
-```{R SVM performance 2}
+```{R SVM performance 2, eval=FALSE, include=FALSE}
 
 # create object for AUC results 
 svm.perf.metrics <- performance(svm.pred.obj, measure = "auc")
@@ -223,123 +458,4 @@ train$handle <- as.factor(train$handle)
 test$handle <- as.factor(test$handle)
 
 tuned.svm <- train(handle ~., data = train, method = "svmRadial")
-```
-
-### The k-NN Model
-
-The k-NN model is a venerated approach based on euclidian distance. It doesn't technically produce a model; it simply compares new data to eperical oservations it has for refference, but can often compete with more sophisticated models and is worth a try for numerical data classification tasks.
-
-```{R the k-NN}
-
-# this will require factored outcomes
-train$handle <- as.factor(train$handle)
-test$handle <- as.factor(test$handle)
-
-# create a caret based knn model
-knn <- train(handle ~., data = train, method = "knn")
-knn
-```
-
-We can now look at how it will work in context
-
-```{R Evaluate k-NN}
-
-# apply the model to the testing set
-knn.pred <- predict(knn, test)
-
-# see how it did
-length(which(knn.pred == test$handle))/nrow(test)
-rmse(as.numeric(knn.pred), as.numeric(test$handle))
-```
-
-This is a fairly good start. It's basically on par with the SVM already, so it is certainly worth considering and taking the time to tune.
-```{R Tuning k-NN}
-
-ctrl <- trainControl(method = "cv", number = 10, selectionFunction = "oneSE")
-tuned.knn <- train(handle ~., data = test, method = "knn", trControl = ctrl)
-tuned.knn
-```
-```{R Evaluating the tuned k-NN}
-
-# apply the model to the testing set
-tuned.knn.pred <- predict(tuned.knn, test)
-
-# see how it did
-length(which(tuned.knn.pred == test$handle))/nrow(test)
-rmse(as.numeric(tuned.knn.pred), as.numeric(test$handle))
-```
-
-We can use the same approach to further our investigation of our k-NN model.
-
-```{R k-NN AUC}
-
-# create an ROC object to get the ROC
-knn.pred.obj <- prediction(predictions = as.numeric(tuned.knn.pred), labels = factor(test$handle))
-
-# evaluate the performace of the object "true positive rates" and "false positive rates"
-perf <- performance(knn.pred.obj, measure = "tpr", x.measure = "fpr")
-
-# plot the results 
-plot(perf, main = "ROC curve for knn model", col = "green", lwd = 3)
-abline(a = 0, b = 1, lwd =2, lty = 2)
-```
-
-And the number:
-
-```{R Quantify k-NN AUC}
-
-# quantify results
-knn.perf.metrics <- performance(knn.pred.obj, measure = "auc")
-unlist(knn.perf.metrics@y.values)
-```
-
-
-```{R Neural Network}
-
-# train a nueral net
-nnet <- train(handle ~., data = train, method = "nnet")
-
-# make predictions
-nn.pred <- predict(nnet, test)
-
-# evaluate with out metrics
-length(which(nn.pred == test$handle))/nrow(test)
-rmse(as.numeric(nn.pred), as.numeric(test$handle))
-```
-
-This is our best result so far, so let's see if we can coax anything else out of it.
-
-```{R Tuning the Neural Net}
-
-ctrl <- trainControl(method = "cv", number = 10, selectionFunction = "oneSE")
-tuned.nnet <- train(handle ~., data = test, method = "nnet", trControl = ctrl)
-
-# make predictions
-tuned.nn.pred <- predict(tuned.nnet, test)
-
-# evaluate with out metrics
-length(which(tuned.nn.pred == test$handle))/nrow(test)
-rmse(as.numeric(tuned.nn.pred), as.numeric(test$handle))
-```
-
-
-```{R Neural Net AUC}
-
-# create an ROC object to get the ROC
-tuned.nn.pred.obj <- prediction(predictions = as.numeric(tuned.nn.pred),
-                                            labels = factor(test$handle))
-
-# evaluate the performace of the object "true positive rates" and "false positive rates"
-perf <- performance(tuned.nn.pred.obj, measure = "tpr", x.measure = "fpr")
-
-# plot the results 
-plot(perf, main = "ROC curve for Neural Net model", col = "gray", lwd = 3)
-abline(a = 0, b = 1, lwd =2, lty = 2)
-```
-
-```{R Quantify Nueral Net AUC}
-
-# quantify results
-tuned.nn.perf.metrics <- performance(tuned.nn.pred.obj, measure = "auc")
-unlist(tuned.nn.perf.metrics@y.values)
 ```
