@@ -1,8 +1,25 @@
 ---
-author: "Thadryan Sweeney"
-title: "DMML Signature Assignment"
-output: html_notebook
+title: "He Said / She Said"
+subtitle: "Author Classification for Twitter Metadata in #Election2016"
+author: "Thadryan J. Sweeney - Northeastern University - Data Mining and Machine Learning"
+output:
+  pdf_document: default
+  html_notebook: default
 ---
+
+## Project Goals
+
+### This project will classify which presidential candidate composed a given tweet in the 2016 presidential election based on numerical values. 
+
+While it may seem counter-intuitive to analyze text without considering the actual words, using numerical values might allow for a computationally lighter alternative to traditional text mining while avoiding some of the complexities and ambiguity that can arise from natural language. This model is a proof of concept for such an approach in binary classification. 
+
+## The Dataset
+
+This dataset is a heavily re-engineered version of the Trump and Hillary Tweets dataset reviewed and presented by Kaggle. The original dataset includes Boolean values such as retweet or quote status and easily factorable information like who the tweet was directed at or who originally wrote it. In addition, I've written a Python function to extract numeric metadata such as number of sentences, average sentence length, average word length, number of URLs, and number of "@" or "#" symbols, etc. 
+
+### Loading and Inspecting the Dataset
+
+In this section, we'll load our data and inspect it in a few different ways. After reading the datset from a CSV file, we will be able to see the full set of available information. 
 
 ```{R Load the data}
 
@@ -11,9 +28,12 @@ data <- read.csv("engineered_tweet_data.csv", header = TRUE, stringsAsFactors = 
 str(data)
 ```
 
-We'll now divide the dataset up by candidate so we can make a few comparisons. We will also make sure we have a fair proportion of each candidate.
+We'll now divide the dataset up by candidate so we can make a few comparisons. We will also see how many records we lose if we accept only complete ones to so if transforms are required. Lastly, we will also make sure we have a fair proportion of each candidate.
 
 ```{R Inspect the data}
+
+# number of rows before we remove all imcomplete records
+nrow(data)
 
 # see how many records we lose is we use complete only 
 data <- data[complete.cases(data), ]
@@ -27,11 +47,11 @@ hc.tweets <- data[which(data$handle == "HillaryClinton"), ]
 dt.tweets <- data[which(data$handle == "realDonaldTrump"), ]
 ```
 
-# Summative statistics and Comparisons
+## Summative statistics and Comparisons
 
-Given that I re-engineered a lot of this dataset, I'm going to start by looking at a few simple side-by-side comparisons to make sure the features are distinguishable between the candidates before trying to use them. 
+Given that I re-engineered a lot of this dataset (more than half of the features), I'm going to start by looking at a few simple side-by-side comparisons to make sure the features are distinguishable between the candidates before trying to use them in models.
 
-### Average Sentence Length
+#### Average Sentence Length
 
 ```{R Average sentence length}
 
@@ -43,7 +63,7 @@ mean(dt.tweets$Mean_sentence_length)
 
 There is a noticeable difference in the mean sentence length, which is a good sign.
 
-### Average word length
+#### Average word length
 
 ```{R Average }
 
@@ -55,7 +75,7 @@ mean(dt.tweets$Mean_word_length)
 
 The difference here is likely not going to help us much. Let's keep digging. 
 
-### Retweets
+#### Retweets
 
 ```{R Retweet proportions}
 
@@ -67,9 +87,9 @@ prop.table(table(dt.tweets$is_retweet))
 
 It seems that the candidates retweet at noticeably different rates. Good news for our models. 
 
-### Sharing Quotes
+#### Sharing Quotes
 
-```{R Use of quotes?}
+```{R Use of Quotes}
 
 # prop table of retweets
 prop.table(table(hc.tweets$is_quote_status))
@@ -78,7 +98,7 @@ prop.table(table(dt.tweets$is_quote_status))
 
 The differences in quotes retweeted seems subtle at best.
 
-### Use of ALLCAPS
+#### Use of ALLCAPS
 
 ```{R Words in caps}
 
@@ -91,7 +111,7 @@ caps.counts <- c(hc.mean.caps, dt.mean.caps)
 barplot(caps.counts, names = c("Clinton", "Trump"), xlab = "Candidate", ylab = "Words in CAPS", col = "GREEN")
 ```
 
-### Favorite Counts 
+#### Favorite Counts 
 
 ```{R Favorite couts}
 
@@ -148,7 +168,7 @@ for (i in 1:ncol(num.data) )
 str(num.data)
 ```
 
-### Partition the Datset
+#### Partition the Datset
 
 Now that we have seen their are patterns in the data for models to identify and converted our numbers to 
 
@@ -203,7 +223,7 @@ test$lin.pred <- NULL
 
 This readout provides an excellent readout of features useful in the prediction of the author of the tweet. As noted in the key, the "." and "*" characters dictate the significance to the model. It should be noted that these were considered significant to a model that did not result in useful predictions in practice, but it is useful as a place to start. 
 
-### The k-NN Model
+#### The k-NN Model
 
 The k-NN model is a simple,venerated approach to numeric data based on euclidean distance, and so makes a good starting point for us. It doesn't technically produce a model; it simply compares new data to periodical observations it has for reference, but can often compete with more sophisticated models and is worth a try for numerical data classification tasks.
 
@@ -285,7 +305,7 @@ The tuned k-NN easily outperformed our mostly-exploratory linear model, and read
 
 Next, we will try a neural network. Neural nets operate as a layer of functions that can activate or remain dormant based on their input, and in turn relay information to another layer of functions. The parameters that we can manipulate are the number of layers and the thresholds for activation. Training the neural net produces a vast amount of output so, while this will run, I've opted to conceal the text output with the invisible() function.
 
-```{R Train Neural Network}
+```{R Train Neural Network, include=FALSE}
 
 # train a nueral net
 nnet <- invisible(train(handle ~., data = train, method = "nnet"))
@@ -305,7 +325,7 @@ rmse(as.numeric(nn.pred), as.numeric(test$handle))
 
 This is our best result so far, but let's see if we can coax anything else out of it.
 
-```{R Tuning the Neural Net: Train}
+```{R Tuning the Neural Net: Train, include=FALSE}
 
 # establish control settings for the models 
 # some testing revealed that cv worked better for this model than rpeatedCV
@@ -351,7 +371,7 @@ tuned.nn.perf.metrics <- performance(tuned.nn.pred.obj, measure = "auc")
 unlist(tuned.nn.perf.metrics@y.values)
 ```
 
-# The Random Forest Model
+## The Random Forest Model
 
 ```{R Random Forest}
 
@@ -377,7 +397,7 @@ abline(a = 0, b = 1, lwd = 2, lty = 2)
 tuned.rf.perf.metrics <- performance(tuned.rf.pred.obj, measure = "auc")
 unlist(tuned.rf.perf.metrics@y.values)
 ```
- ### (re)Evaluating the Dubiously Accurate RF Model
+ #### Re-evaluating the Dubiously Accurate RF Model
  
 This alarming rate of success is not necessarily a good sign. It could be that we have overfit the model to the point where it will not work for datasets other than this one. That is not a disaster in this context, but can foil a lot of hard work in environments where the models are intended to scale and be applied to new datasets on a regular basis. To see if the model will work on new data, we will create a new, randomized, partition from the dataset and run it again. This will simulate, to some extent, running the model on an unseen dataset. 
 
@@ -414,6 +434,7 @@ abline(a = 0, b = 1, lwd = 2, lty = 2)
 ```
 
 ```{R RF "New" Data - AUC metric}
+
 # quantify
 tuned.rf.perf.metrics2 <- performance(tuned.rf.pred.obj2, measure = "auc")
 unlist(tuned.rf.perf.metrics2@y.values)
@@ -421,39 +442,56 @@ unlist(tuned.rf.perf.metrics2@y.values)
 
 Given that we don't have an entirely new dataset for me to try this on, using the same model on a newly randomized test set from the original and still performed strongly will have to justify that it has a place in our ensemble.
 
-# Avengers Assemble: Creating and Ensemble Model 
+## Avengers Assemble: Creating and Ensemble Model 
 
-In practice, most profesional data scientists will create ensemble models where different models are given a vote and the final answer is the consensus between them. This can help shore up weaknesses in individual models and prevent overfitting. Sometimes, especially acurate models are given more than one vote, which we will do for our RF model. 
+In practice, most professional data scientists will create ensemble models where different models are given a vote and the final answer is the consensus between them. This can help shore up weaknesses in individual models and prevent overfitting. Sometimes, especially accurate models are given more than one vote, which we will do for our RF model. 
 
 k-NN, RF, RF, NN, 
 
 ```{R Ensemble}
 
+# add a prediction column
 test$knn.pred <- as.numeric(factor(predict(tuned.knn, test)))
 test$nnet <- as.numeric(factor(predict(tuned.nnet, test)))
 test$rf.pred <- as.numeric(factor(predict(tuned.rf, test)))
 test$rf.pred.v2 <- test$rf.pred
 test$vote <- 0
 
+# create a mode function
 Mode <- function(x) 
 {
   uniq.x <- unique(x)
   uniq.x[which.max(tabulate(match(x, uniq.x)))]
 }
 
+# vote one the columns
 for ( i in 1:nrow(test) )
 {
   test[i,28] <- Mode(c(test[i,24], test[i,25], test[i,26], test[i,27]))
 }
 
+# conver to numeric
 test$handle <- as.numeric(test$handle)
                 
+# accuracy
 length(which(test$vote == test$handle))/nrow(test)
+rmse(test$vote, test$handle)
 ```
 
+```{R Evaluate AUC for ensemble }
 
+# create an ROC object to get the ROC
+ensemble.pred.obj2 <- prediction(predictions = as.numeric(test$vote), labels = factor(test$handle))
 
+# evaluate the performace of the object "true positive rates" and "false positive rates"
+ensemble.pred.perf <- performance(ensemble.pred.obj2, measure = "tpr", x.measure = "fpr")
 
+# plot the results 
+plot(ensemble.pred.perf, main = "ROC curve for Ensemble Model", col = "gray", lwd = 3)
+abline(a = 0, b = 1, lwd = 2, lty = 2)
+```
+
+The AUC metric for the ensemble:
 
 
 
