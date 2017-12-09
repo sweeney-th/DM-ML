@@ -9,29 +9,38 @@ output:
 
 ## Project Goals
 
-### This project will classify which presidential candidate composed a given tweet in the 2016 presidential election based on numerical values. 
+#### This project will classify which presidential candidate composed a given tweet in the 2016 presidential election based on numerical values. 
 
 While it may seem counter-intuitive to analyze text without considering the actual words, using numerical values might allow for a computationally lighter alternative to traditional text mining while avoiding some of the complexities and ambiguity that can arise from natural language. This model is a proof of concept for such an approach in binary classification. 
 
-## The Dataset
+The project will follow a slightly modified CRISP-DM structure. Our approach will vary in that model evaluation will be conducted on an ongoing basis to assess candidates for an ensemble model which will be the subject of the evaluation phase of the framework. 
+
+We will explore the model using some simple side-by side comparisons to get a general, intuitive sense of where the differences lie before using regression analysis to asses statistical significance. From there, we will create assorted models and evaluate them based on simple accuracy and RMSE. Given that this is binary classifier with comparable entries from each author, simple accuracy will be more useful than it is with large skews in the. 
+
+
+## Data Understanding
 
 This dataset is a heavily re-engineered version of the Trump and Hillary Tweets dataset reviewed and presented by Kaggle. The original dataset includes Boolean values such as retweet or quote status and easily factorable information like who the tweet was directed at or who originally wrote it. In addition, I've written a Python function to extract numeric metadata such as number of sentences, average sentence length, average word length, number of URLs, and number of "@" or "#" symbols, etc. 
 
 ### Loading and Inspecting the Dataset
 
-In this section, we'll load our data and inspect it in a few different ways. After reading the dataset from a CSV file, we will be able to see the full set of available information. 
+In this section, we'll load our data and inspect it in a few different ways. After reading the dataset from a CSV file, we will be able to see the full set of available information.
 
 ```{R Load the data}
 
 # get the data, check the number of rows
 data <- read.csv("engineered_tweet_data.csv", header = TRUE, stringsAsFactors = FALSE)
+data$Commas <- NULL # The commas feature gets erased by the red csv function but isn't needed
 str(data)
 ```
 
-This shows that our tweaks resulted in usable data but we want only numbers, so we will iterate though and make binary dummy codes or IDs ass appropriate.
+This shows that our tweaks resulted in usable data but we want only numbers, so we will iterate though and make binary dummy codes or IDs as appropriate.
+
+## Data Preparation
 
 ```{R Create numeric dataset}
 
+# make a copy of the data to manipulate
 num.data <- data
 
 # the text is no longer needed
@@ -68,7 +77,8 @@ for (i in 1:ncol(num.data) )
 str(num.data)
 ```
 
-We'll now divide the dataset up by candidate so we can make a few comparisons. We will also see how many records we lose if we accept only complete ones to so if transforms are required (we received a NAs warning). Lastly, we will also make sure we have a fair proportion of each candidate.
+We'll now divide the dataset up by candidate so we can make a few comparisons. We will also see how many records we lose if we accept only complete ones to so if transforms are required (we received a NAs warning). Lastly, we will also make sure we have a fair proportion of each candidate. 
+
 
 ```{R Inspect the data}
 
@@ -80,7 +90,7 @@ num.data <- num.data[complete.cases(num.data), ]
 nrow(num.data)
 ```
 
-This shows we will only lose a few records if we use the complete cases function, so we will take that route as opposed to the risks of imputation. Next we will see how the proportions are; we need a comparable number of tweets from each candidate. 
+Next we will see how the proportions are; we need a comparable number of tweets from each candidate. 
 
 ```{R Proportions}
 
@@ -90,6 +100,24 @@ prop.table(table(data$handle))
 # divide the tweets by candidate for inspection
 hc.tweets <- num.data[which(num.data$handle == 1), ]
 dt.tweets <- num.data[which(num.data$handle == 0), ]
+```
+
+#### Outliers and Imputation?
+
+This shows we will only lose a few records if we use the complete cases function, so we will take that route as opposed to the risks of imputation.
+
+Given that this is a learning assessment and that imputation is required in a lot of cases I'll describe some strategies that would have been useful if they were needed:
+
+##### Continuous Variables:
+Features in the dataset like number of favorites, mean word length, etc. could likely be imputed using the mean. We have copies of the dataset sorted by candidate which could be used for this. In cases like original author or the name of the person that tweet was directed at, using the negative value would likely be advisable; it's clear that in most cases there were no particular targets.
+
+##### Booleans
+The same to Boolean values like that truncation status. This is an uncommon enough occurrence that we can use the negative:
+
+```{R Hypothetical Outliers}
+
+# examine for potential impuations strategies
+table(num.data$truncated)
 ```
 
 ## Summative statistics and Comparisons
@@ -129,6 +157,13 @@ The difference here is likely not going to help us much. Let's keep digging.
 # prop table of retweets
 prop.table(table(hc.tweets$is_retweet))
 prop.table(table(dt.tweets$is_retweet))
+```
+
+Correlation for re-tweets
+
+```{R Retweets correlaions}
+
+# cal cor functions 
 cor(num.data$is_retweet, num.data$handle)
 ```
 
@@ -222,12 +257,11 @@ train <- train[-3053, ]   # we have an odd numer of samples, some models reject 
 test <- num.data[-trainIndex, ]
 ```
 
-
 Now that we are equipped with a numeric dataset, we can start applying some preliminary models to see what strategies might get good results for our dataset.
 
-# Linear Regression for Prediciton and Exploration
+## Linear Regression for Prediciton and Exploration.
 
-Firstly, we will try a linear regression model to see if we can get good predictions and hints as to which features might be the most valuable 
+Firstly, we will try a linear regression model to see if we can get good predictions and hints as to which features might be the most valuable.
 
 ```{R linear exploration}
 
@@ -255,6 +289,8 @@ test$lin.pred <- NULL
 ```
 
 This readout provides an excellent readout of features useful in the prediction of the author of the tweet. As noted in the key, the "." and "*" characters dictate the significance to the model. It should be noted that these were considered significant to a model that did not result in useful predictions in practice, but it is useful as a place to start. 
+
+## Modeling
 
 #### The k-NN Model
 
@@ -407,7 +443,7 @@ unlist(tuned.nn.perf.metrics@y.values)
 
 ## Rule Learners
 
-Next we will try some rule learners. Rule learners are used for producing human-readable outputs of rules for reaching an outcome, in this case the autor The advantage for us herr is that we can see very clearly what the model is doing, unlike the "black box" of neural networks. We will use a different library for this, which will make it very easy to output the rules and demonstrate we can operate outside the caret library. In terms of specific implementations, we will use the RIPPER algorithm, which "prunes" branches in the results that aren't helpful to avoid unnecessary computation and improve results.
+Next we will try some rule learners. Rule learners are used for producing human-readable outputs of rules for reaching an outcome, in this case the author The advantage for us her is that we can see very clearly what the model is doing, unlike the "black box" of neural networks. We will use a different library for this, which will make it very easy to output the rules and demonstrate we can operate outside the caret library. In terms of specific implementations, we will use the RIPPER algorithm, which "prunes" branches in the results that aren't helpful to avoid unnecessary computation and improve results.
 
 ```{R Rule Learners}
 
@@ -424,7 +460,8 @@ rl.pred <- predict(rl, test)
 length(which(rl.pred == test$handle))/nrow(test)
 rmse(as.numeric(rl.pred), as.numeric(test$handle))
 ```
-Now let's take advantage of the transparancey of the model and see the rules.
+
+Now let's take advantage of the transparency of the model and see the rules.
 
 ```{R Rules}
 # display rules
@@ -433,7 +470,7 @@ rl
 
 ## The Random Forest Model
 
-Random forests are a model that creates a decision tree, much like the rule learners, but generates sveral and produces a prediciton based on a vote to help avoid overfitting the model. Now that we have demostrated the tuning proceedure and seen consistent improvements, we will just start with a tuned model here and change it if needed.
+Random forests are a model that creates a decision tree, much like the rule learners, but generates several and produces a prediction based on a vote to help avoid overfitting the model. Now that we have demonstrated the tuning procedure and seen consistent improvements, we will just start with a tuned model here and change it if needed.
 
 ```{R Random Forest}
 
@@ -464,10 +501,17 @@ tuned.rf.perf <- performance(tuned.rf.pred.obj, measure = "tpr", x.measure = "fp
 # plot the results 
 plot(tuned.rf.perf, main = "ROC curve for RF model", col = "gray", lwd = 3)
 abline(a = 0, b = 1, lwd = 2, lty = 2)
+```
+
+RF metrics:
+
+```{R RF Metrics}
+
+# get metrics
 tuned.rf.perf.metrics <- performance(tuned.rf.pred.obj, measure = "auc")
 unlist(tuned.rf.perf.metrics@y.values)
 ```
- 
+
 #### Re-evaluating the Dubiously Accurate RF Model
  
 Depending of how the data is partitioned and what I set for a seed value, this model achieves 100% accuracy. While this is (mostly) a good sign, It could be that we have overfit the model to the point where it will not work for datasets other than this one. Tree-based models are notorious for doing this. That is not a disaster in this context, but can foil a lot of hard work in environments where the models are intended to scale and be applied to new datasets on a regular basis. To see if the model will work on new data, we will create a new, randomized, partition from the dataset and run it again. This will simulate, to some extent, running the model on an unseen dataset. 
@@ -519,7 +563,7 @@ Given that we don't have an entirely new dataset for me to try this on, using th
 
 ## Avengers Assemble: Creating and Ensemble Model 
 
-In practice, most professional data scientists will create ensemble models where different models are given a vote and the final answer is the consensus between them. This can help shore up weaknesses in individual models and prevent overfitting. Sometimes, especially accurate models are given more than one vote, which we will do for our RF model. 
+In practice, most professional data scientists will create ensemble models where different models are given a vote and the final answer is the consensus between them. This can help shore up weaknesses in individual models and prevent overfitting. Sometimes, especially accurate models are given more than one vote, which we will do for our RF model. While it might be tempting to simply use the RF model, given that we have some concerns about overfitting and our other models are also doing well, we'll use the weighted ensemble. 
 
 ```{R Ensemble}
 
@@ -536,7 +580,7 @@ test$rf.pred.v2  <- test$rf.pred
 test$vote <- 0
 
 # create a mode function
-Mode <- function(x) 
+vote <- function(x) 
 {
   # find and tablute max for unique values
   uniq.x <- unique(x)
@@ -546,16 +590,18 @@ Mode <- function(x)
 # Iterate through the models and cast a vote
 for ( i in 1:nrow(test) )
 {
-  test[i,29] <- Mode(c(test[i,24], test[i,25], test[i,26], test[i,27], test[i,28]))
+  test[i,28] <- vote(c(test[i,23], test[i,24], test[i,25], test[i,26], test[i,27]))
 }
 
 # convert to numeric
 test$handle <- as.numeric(test$handle)
                 
 # accuracy
-length(which(test$vote == test$handle))/nrow(test)
-rmse(test$vote, test$handle)
+length(which(test$V29 == test$handle))/nrow(test)
+rmse(test$V29, test$handle)
 ```
+
+## Evaluation 
 
 ```{R Evaluate AUC for ensemble }
 
@@ -578,3 +624,66 @@ The AUC metric for the ensemble:
 ensemble.perf.metrics <- performance(ensemble.pred.obj, measure = "auc")
 unlist(ensemble.perf.metrics@y.values)
 ```
+
+## Deployment 
+
+This model seems to be highly effective in our test set. If it were to be implemented, however, the speed with which it could be built would be highly dependent on library availability as it the vote use four different types of models. There would also be infrastructure concerns in terms of harvesting the tweets, but the Python function and script would be viable starts. 
+
+#### APPENDIX A
+
+## Support Vector Machine Model 
+
+We have plenty of running models that do as well as this or better, so we don't need it for the ensemble, but to demonstrate how transformation and standardization might come into play, we will make an SVM model. This function throws an error if you give it data that are dummy encoded to binary. Using a z score scale will standardize the data in a no binary fashion based on how far they are from the mean. This will allow an SVM to read them. They could be tuned like any of the other caret train() based models implemented above.
+
+```{R SVM model}
+
+# import library
+library(kernlab)
+
+# make a copy of the data to z score normalize
+z.num.data <- num.data
+
+# set seed 
+set.seed(867.5309)
+
+# create index for partitioning 
+svm.train.index <- createDataPartition(z.num.data$handle, p = 0.5, list = FALSE)
+
+# entries in the index are train, the ones that aren't are test
+svm.train <- z.num.data[svm.train.index, ]
+svm.train <- train[-3053, ]   # we have an odd numer of samples, some models reject this
+
+# create the inverse partition
+svm.test <- z.num.data[-svm.train.index, ]
+
+# we start at number two because we don't want to normalize the handle
+for (i in 2:ncol(z.num.data))
+{
+  # call the scale funciton on the line
+  z.num.data[,i] <- scale(z.num.data[,i])  
+}
+
+# create SVM predicting handle based on partitions 
+ctrl <- trainControl(method = "cv", number = 10, selectionFunction = "best")
+svm <- ksvm(handle ~., data = svm.train, kernel = "vanilladot", trControl = ctrl) 
+
+# make predictions
+svm.test$pred <- predict(svm, test)
+
+# use it to make predictions
+svm.test$pred <- as.numeric(factor(svm.test$pred))
+
+svm.test$pred[svm.test$pred == 1 ] <- 0
+svm.test$pred[svm.test$pred == 2 ] <- 1
+
+# simple accuracy
+length(which(svm.test$pred == svm.test$handle))/nrow(svm.test)
+
+# calculate the rmse
+RMSE(svm.test$pred, svm.test$handle)
+```
+str()
+
+
+
+
