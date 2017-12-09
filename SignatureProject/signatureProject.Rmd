@@ -28,7 +28,7 @@ In this section, we'll load our data and inspect it in a few different ways. Aft
 ```{R Load the data}
 
 # get the data, check the number of rows
-data <- read.csv("engineered_tweet_data.csv", header = TRUE, stringsAsFactors = FALSE)
+data <- read.csv("engineered_tweet_data2.csv", header = TRUE, stringsAsFactors = FALSE)
 data$Commas <- NULL # The commas feature gets erased by the red csv function but isn't needed
 str(data)
 ```
@@ -242,7 +242,7 @@ Now that we have seen their are patterns in the data for models to identify and 
 library(caret)
 
 # set seed 
-set.seed(867.5309)
+set.seed(8675309)
 
 # create index for partitioning 
 trainIndex <- createDataPartition(num.data$handle, p = 0.5, list = FALSE)
@@ -629,11 +629,11 @@ This model seems to be highly effective in our test set. If it were to be implem
 
 #### APPENDIX A
 
-## Support Vector Machine Model 
+## Support Vector Machine Model - Transformation and Outlier Detection 
 
 We have plenty of running models that do as well as this or better, so we don't need it for the ensemble, but to demonstrate how transformation and standardization might come into play, we will make an SVM model. This function throws an error if you give it data that are dummy encoded to binary. Using a z score scale will standardize the data in a no binary fashion based on how far they are from the mean. This will allow an SVM to read them. They could be tuned like any of the other caret train() based models implemented above.
 
-```{R SVM model}
+```{R Transform Data}
 
 # import library
 library(kernlab)
@@ -660,6 +660,25 @@ for (i in 2:ncol(z.num.data))
   # call the scale funciton on the line
   z.num.data[,i] <- scale(z.num.data[,i])  
 }
+```
+
+Demonstration of how outliers in the favorites catagory might be detected. Generally speaking, Z = 3+ is a good place to start. If there is an abnormally low or abnormally high amount of variability in the datast, experimentation may be required. For example if 1/3 of your cases are "outliers", you proably need it increase the threshold. A value of 1.5 or 4.5 might be more approprite.
+
+```{R Outlier Detection}
+
+# this will return a list of cases where the z score is more than 3
+favorite.ol <- which(z.num.data$favorite_count > 3)
+favorite.ol
+
+# the outliers list could easily be removed 
+z.num.data.xol <- z.num.data[-favorite.ol, ]
+nrow(z.num.data)
+nrow(z.num.data.xol)
+```
+
+We can now construct a model
+
+```{R SVM Model}
 
 # create SVM predicting handle based on partitions 
 ctrl <- trainControl(method = "cv", number = 10, selectionFunction = "best")
@@ -671,6 +690,7 @@ svm.test$pred <- predict(svm, test)
 # use it to make predictions
 svm.test$pred <- as.numeric(factor(svm.test$pred))
 
+# the transformation changed 1 and 0 to 2 and 1, so we put them back
 svm.test$pred[svm.test$pred == 1 ] <- 0
 svm.test$pred[svm.test$pred == 2 ] <- 1
 
@@ -678,9 +698,8 @@ svm.test$pred[svm.test$pred == 2 ] <- 1
 length(which(svm.test$pred == svm.test$handle))/nrow(svm.test)
 
 # calculate the rmse
-RMSE(svm.test$pred, svm.test$handle)
+rmse(svm.test$pred, svm.test$handle)
 ```
-str()
 
 
 
