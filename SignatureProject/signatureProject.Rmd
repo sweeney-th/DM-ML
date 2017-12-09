@@ -21,7 +21,6 @@ We will explore the model using some simple side-by side comparisons to get a ge
 ## Data Understanding
 
 This dataset is a heavily re-engineered version of the Trump and Hillary Tweets dataset reviewed and presented by Kaggle. The original dataset includes Boolean values such as retweet or quote status and easily factorable information like who the tweet was directed at or who originally wrote it. In addition, I've written a Python function to extract numeric metadata such as number of sentences, average sentence length, average word length, number of URLs, and number of "@" or "#" symbols, etc. 
-
 ### Loading and Inspecting the Dataset
 
 In this section, we'll load our data and inspect it in a few different ways. After reading the dataset from a CSV file, we will be able to see the full set of available information.
@@ -128,7 +127,6 @@ Given that I re-engineered a lot of this dataset (more than half of the features
 
 ```{R Average sentence length}
 
-# z test check normalility
 # average word length
 mean(hc.tweets$Mean_sentence_length)
 mean(dt.tweets$Mean_sentence_length)
@@ -597,8 +595,8 @@ for ( i in 1:nrow(test) )
 test$handle <- as.numeric(test$handle)
                 
 # accuracy
-length(which(test$V29 == test$handle))/nrow(test)
-rmse(test$V29, test$handle)
+length(which(test$vote == test$handle))/nrow(test)
+rmse(test$vote, test$handle)
 ```
 
 ## Evaluation 
