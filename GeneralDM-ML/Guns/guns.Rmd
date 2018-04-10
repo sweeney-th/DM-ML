@@ -1,0 +1,280 @@
+---
+title: "Guns"
+author: "Thadryan Sweeney"
+date: "April 2, 2018"
+output: html_document
+---
+
+```{R}
+
+# original 
+o.data <- read.csv("full_data.csv")
+
+# print out a summary and a list of catagories in each columns 
+str(o.data)
+
+# print out names and levels (skip ID)
+message("Column names and their levels")
+for( i in 2:ncol(o.data)) {
+  message(names(o.data[i]))
+  print(levels(as.factor(o.data[,i])))
+}
+```
+
+```{R}
+
+# get a summary of the working data 
+summary(o.data)
+```
+
+Let's make a copy of the original data (in case we want to look back at it) to clean up into our working data. 
+
+We don't need the case ID number "X", it's just the row number, we'll start by getting rid of that.
+
+```{R}
+
+# copy to raw data 
+r.data <- o.data
+
+# remove X
+r.data$X <- NULL
+```
+
+
+The summary also says we have some missing data. We will inspect the missing values to see if they are enough to be problematic and need to be imputed or if we can just ditch them.
+
+```{R}
+
+# how many rows are missing data?
+length(which(is.na(o.data)))
+```
+
+We can confidently remove data with missing values given that there are less than 3,000 of them in a dataset of over 100,000
+
+```{r}
+
+# complete data is complete cases of raw data
+c.data <- r.data[complete.cases(r.data), ]
+```
+
+
+The summary also tells us that there are some cases where no intent was found. Let's investigate the possibility of removing them. We'll make a proportion table of intents:
+```{R}
+
+# get a prop table on intent 
+prop.table(table(c.data$intent))
+```
+
+They make up a very small proportion of out dataset. We will isolate and remove them, updating the clean dataframe.
+```{R}
+
+# isolate undetermined cases 
+undetermined <- which(c.data$intent == "Undetermined")
+
+# we will update the dataframe 
+c.data <- c.data[-undetermined, ]
+```
+
+We now have a set where all the intents are known and no values are missing. 
+
+```{R Summaries by Year}
+
+# get deaths by year 
+deaths12 <- length(which(c.data$year == 2012))
+deaths13 <- length(which(c.data$year == 2013))
+deaths14 <- length(which(c.data$year == 2014))
+
+# get lists for the axes
+years = c(2012,2013,2014)
+year_counts <- c(deaths12, deaths13, deaths14)
+
+# plot the data 
+plot(years, year_counts, main = "Total Deaths by Year",ylim = c(32000,32750), xlab = "Year", axes = FALSE)
+
+# modify axes
+axis(side = 1, at = years)
+axis(side = 2, at = c(seq(32000, 32750, by = 250)))
+```
+
+
+
+# make a plot spanning range of exp, with labels for session v experience 
+plot(x$session, x$exp, main = "Leni's Experience\n", type = "line", xlab = "Session", 
+     ylab = "Experience", ylim = c(min(x$exp), max(x$exp)), axes = FALSE)
+
+
+
+
+
+
+
+
+
+Fortunately and unfortunately, our dataset it very large, so we will experiment with a subset of it. We'll shoot for around 1/5th of it. Keep in mind though, that's still 20k. For this we will import R's classic caret library and see how we do with a few machines. 
+
+```{R}
+
+# import the go-to R package for ML
+library(caret)
+
+# set a random seed - this just means will be using the same random set each time for now 
+set.seed(8675309)
+
+# sample the data (sample 1)
+s1.data <- c.data[sample(nrow(c.data), 20000), ]
+
+# create an idex of 70% entries in the dataframe based on race 
+partitionIndex = createDataPartition(s1.data$race, p = 0.7, list = FALSE)
+
+# train will be the entries in the partition 
+train <- s1.data[ partitionIndex, ]
+
+# test will be the opposite of the ones in the partition 
+test  <- s1.data[-partitionIndex, ]
+```
+
+The first model we will try is k-nearest neighbors. In human terms, the "k-NN" algorithm works by plotting data on a chart based on its features, and classifying it as the identify of the things that it is close to (based on euclidean distance). The "k" represents the number of neighbors that get to "vote" on what it is. For example, if k is 3, the most common of the 3 closest neighbors is the classification given to the unknown. 
+
+```{R}
+
+# train a knn algorithm to predict race in light of all other variables
+m.knn <- train(race ~., method = "knn", data = train)
+
+# take a look at the model 
+m.knn
+```
+
+Kappa is
+This is good haha
+
+Let's use this newly trianed model to predict values in the test dataset
+
+```{R Apply Evaluate the KNN Model}
+
+# apply that model tho the test dataframe 
+test$knn.pred = predict(m.knn, newdata = test)
+
+# take the simple accuracy of the KNN model 
+knn.simple.acc <- length(which(test$knn.pred == test$race))/nrow(test)
+knn.simple.acc
+```
+
+One of the most foundational machine learning algorithms is a decision tree. It's pretty much what it sounds like. It creates a simple, flow chart like "tree" of criteria - if x is above this, do this, if y is this do that. The drawback to this is that often decision tress "overfit" a dataset. That is, they "memorize" how to get the right answer on your training set and perform poorly on new data when they are applied. A random forest is a collection of decision trees that reach a consensus, and that can help reduce that risk somewhat (though it is still possible). As notorious as they are for overfitting, they are famous for pulling high quality insights from data that seems like a mess, so they're usually worth considering. We'll train one and see where it gets us. 
+
+```{R Train a Random Forest}
+
+# train a random forest classifier 
+m.rf <- train(race ~., method = "rf", data = train)
+
+# inspect the random forest model 
+m.rf
+```
+
+
+
+```{R Apply and Evaluate the Random Forest Model}
+
+# apply the random forest model to the test using test as new data
+test$rf.pred <- predict(m.rf, newdata = test)
+
+# show the simple accuracy 
+rf.simple.acc <- length(which(test$rf.pred == test$race))/nrow(test)
+rf.simple.acc
+```
+
+
+```{r}
+
+# we will use the svm implementation in the e1071 as we are using R 3.2
+library("e1071")
+
+# train an svm model 
+m.svm <- svm(race ~., data = train, scale = FALSE)
+
+# show some details on the model 
+m.svm
+```
+
+Let's take a look at what our SVM has to offer:
+
+```{R}
+
+# apply the svm prediction to the test frame use test as new data
+test$svm.pred = predict(m.svm, newdata = test)
+
+# simple accuracy on the data it was trainied on 
+svm.simple.acc <- length(which(test$svm.pred == test$race))/nrow(test)
+svm.simple.acc
+```
+
+
+
+
+Number of variables available for splitting at each tree node. In the random forests literature, this is referred to as the mtry parameter.
+
+
+Maybe the vote function is messing me up. Very slight improvment. But this might be better on unknown data than an individual model. 
+
+```{R}
+
+# define a function that gets the most common input 
+vote <- function(x) 
+{
+  # find and tablute max for unique values
+  uniq.x <- unique(x)
+  uniq.x[which.max(tabulate(match(x, uniq.x)))]
+}
+
+test$race.as.num <- as.numeric((test$race))
+
+for(i in 1:nrow(test)) {
+  test$consesus[i] = as.numeric(vote( c(test$svm.pred[i], test$knn.pred[i], test$rf.pred[i])) )
+}
+length(which(test$consesus == test$race.as.num))/nrow(test)
+```
+
+```{R}
+
+```
+
+
+
+
+
+
+
+
+
+# get deaths by year 
+deaths12 <- length(which(c.data$year == 2012))
+deaths13 <- length(which(c.data$year == 2013))
+deaths14 <- length(which(c.data$year == 2014))
+
+# get lists for the axes
+years = c(2012,2013,2014)
+year_counts <- c(deaths12, deaths13, deaths14)
+
+# plot the data 
+plot(years, year_counts, main = "Total Deaths by Year",ylim = c(32000,32750), xlab = "Year", axes = FALSE)
+
+# modify axes
+axis(side = 1, at = years)
+axis(side = 2, at = c(seq(32000, 32750, by = 250)))
+```{R}
+
+#for (i in 1:ncol(d)) {
+#  d[,i] <- as.numeric(d[,i])
+#}
+#d$police <- as.factor(d$police)
+#df[,c(1,2,5)]
+#partitionIndex = createDataPartition(d$d.police, p = 0.7, list = FALSE)
+
+#train <- d[ partitionIndex, ]
+#test  <- d[-partitionIndex, ]
+
+
+#colnames(adult_data)[colSums(is.na(adult_data)) > 0]
+
+
+
+```
