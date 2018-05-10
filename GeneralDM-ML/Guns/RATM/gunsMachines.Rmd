@@ -1,0 +1,367 @@
+---
+title: "gunsMachines"
+author: "Thadryan Sweeney"
+date: "April 11, 2018"
+output: html_document
+---
+
+```{R Sample and partition data}
+
+# import the go-to R package for ML
+library(caret)
+
+# set a random seed - this just means will be using the same random set each time for now 
+set.seed(8675309)
+
+# sample the data (sample 1)
+s1.data <- data[sample(nrow(data), 20000), ]
+
+# create an idex of 70% entries in the dataframe based on race 
+partitionIndex = createDataPartition(s1.data$race, p = 0.7, list = FALSE)
+
+# train will be the entries in the partition 
+train <- s1.data[ partitionIndex, ]
+
+# test will be the opposite of the ones in the partition 
+test  <- s1.data[-partitionIndex, ]
+```
+
+The first model we will try is k-nearest neighbors. In human terms, the "k-NN" algorithm works by plotting data on a chart based on its features, and classifying it as the identify of the things that it is close to (based on euclidean distance). The "k" represents the number of neighbors that get to "vote" on what it is. For example, if k is 3, the most common of the 3 closest neighbors is the classification given to the unknown. 
+
+```{R Train a KKN classifier}
+
+# train a knn algorithm to predict race in light of all other variables
+m.knn <- train(race ~., method = "knn", data = train)
+
+# take a look at the model 
+m.knn
+```
+
+Kappa is
+This is good haha
+
+Let's use this newly trianed model to predict values in the test dataset
+
+```{R Evaluate the KNN model}
+
+# apply that model tho the test dataframe 
+test$knn.pred = predict(m.knn, newdata = test)
+
+# take the simple accuracy of the KNN model 
+knn.simple.acc <- length(which(test$knn.pred == test$race))/nrow(test)
+knn.simple.acc
+```
+
+One of the most foundational machine learning algorithms is a decision tree. It's pretty much what it sounds like. It creates a simple, flow chart like "tree" of criteria - if x is above this, do this, if y is this do that. The drawback to this is that often decision tress "overfit" a dataset. That is, they "memorize" how to get the right answer on your training set and perform poorly on new data when they are applied. A random forest is a collection of decision trees that reach a consensus, and that can help reduce that risk somewhat (though it is still possible). As notorious as they are for overfitting, they are famous for pulling high quality insights from data that seems like a mess, so they're usually worth considering. We'll train one and see where it gets us. 
+
+```{R Train a Random Forest}
+
+# train a random forest classifier 
+m.rf <- train(race ~., method = "rf", data = train)
+
+# inspect the random forest model 
+m.rf
+```
+
+
+```{R Apply and Evaluate the Random Forest Model}
+
+# apply the random forest model to the test using test as new data
+test$rf.pred <- predict(m.rf, newdata = test)
+
+# show the simple accuracy 
+rf.simple.acc <- length(which(test$rf.pred == test$race))/nrow(test)
+rf.simple.acc
+```
+
+
+```{R Train the Support Vector Machine}
+
+# we will use the svm implementation in the e1071 as we are using R 3.2
+library("e1071")
+
+# train an svm model 
+m.svm <- svm(race ~., data = train, scale = FALSE)
+
+# show some details on the model 
+m.svm
+```
+
+Let's take a look at what our SVM has to offer:
+
+```{R Evaluate the SVM}
+
+# apply the svm prediction to the test frame use test as new data
+test$svm.pred = predict(m.svm, newdata = test)
+
+# simple accuracy on the data it was trainied on 
+svm.simple.acc <- length(which(test$svm.pred == test$race))/nrow(test)
+svm.simple.acc
+```
+
+
+Number of variables available for splitting at each tree node. In the random forests literature, this is referred to as the mtry parameter.
+
+Maybe the vote function is messing me up. Very slight improvment. But this might be better on unknown data than an individual model. 
+
+```{R Create and ensemble using a vote function}
+
+# define a function that gets the most common input 
+vote <- function(x) 
+{
+  # find and tablute max for unique values
+  uniq.x <- unique(x)
+  uniq.x[which.max(tabulate(match(x, uniq.x)))]
+}
+
+test$race.as.num <- as.numeric((test$race))
+
+for(i in 1:nrow(test)) {
+  test$consesus[i] = as.numeric(vote( c(test$svm.pred[i], test$knn.pred[i], test$rf.pred[i])) )
+}
+length(which(test$consesus == test$race.as.num))/nrow(test)
+```
+
+
+
+
+# get deaths by year 
+deaths12 <- length(which(c.data$year == 2012))
+deaths13 <- length(which(c.data$year == 2013))
+deaths14 <- length(which(c.data$year == 2014))
+
+# get lists for the axes
+years = c(2012,2013,2014)
+year_counts <- c(deaths12, deaths13, deaths14)
+
+# plot the data 
+plot(years, year_counts, main = "Total Deaths by Year",ylim = c(32000,32750), xlab = "Year", axes = FALSE)
+
+# modify axes
+axis(side = 1, at = years)
+axis(side = 2, at = c(seq(32000, 32750, by = 250)))
+
+
+#for (i in 1:ncol(d)) {
+#  d[,i] <- as.numeric(d[,i])
+#}
+#d$police <- as.factor(d$police)
+#df[,c(1,2,5)]
+#partitionIndex = createDataPartition(d$d.police, p = 0.7, list = FALSE)
+
+#train <- d[ partitionIndex, ]
+#test  <- d[-partitionIndex, ]
+
+
+#colnames(adult_data)[colSums(is.na(adult_data)) > 0]
+
+
+
+
+
+# allows for string interpolation 
+library(stringr)
+# total_message <- str_interp("Total XP: ${total}")
+# as
+precent_which <- function(df, catagory, target)
+{
+  message(str_interp("Percent of column '${catagory}' for '${target}'"))
+  results <- length(which(df[catagory] == target))/nrow(df)
+  return(results*100)
+}
+
+precent_which(df = c.data, catagory = "race", target = "Black")
+
+We will now define a function that querys this set of dataframes to give us a side by side comparison.
+
+yby <- function(target)
+{
+  message(2012)
+  print(summary(c.data12[target]))
+  message(2012)
+  print(summary(c.data13[target]))
+  message(2012)
+  print(summary(c.data14[target]))
+}
+```{r}
+
+# define a function to compare elements from the year DFs
+year_sbs <- function(target)
+{
+
+  # rotate the summmaries in to columns 
+  col1 <- transform(as.vector(summary(c.data12[,target])))
+  col2 <- transform(as.vector(summary(c.data13[,target])))
+  col3 <- transform(as.vector(summary(c.data14[,target])))
+  
+  # bind the columsm 
+  new.df <-cbind(col1, col2, col3)
+  
+  # rename them
+ # colnames(new.df) <- c("2012", "2013", "2014")
+  
+  # name the rows 
+  #print((factor(c.data12[target])))
+  
+  # display
+  return(new.df)
+}
+```
+
+### Appendix Whatever: validate te proportion_of
+```{R Validate the "proportion_of" function - summary, eval=FALSE, include=FALSE}
+
+# get a summary of the racial makeup 
+summary(c.data$race)
+```
+ ## Define a proportion_of() function
+
+We'll be asking a lot of questions about proportions next, so we will define a function that returns the percent of a dataframe in which a given catagory equals a given target, ie, in "this dataframe", what percect of "this colum" is "this trait". By default it will include a message to make it clear what is being analyzed. The validation of this function can be found in appendix *
+
+
+```{R proportion_of() Function, eval=FALSE, include=FALSE}
+
+# allows for string interpolation 
+library(stringr)
+
+# define th proportion of to act on df column and target to count 
+proportion_of <- function(df, catagory, target, message = TRUE)
+{
+  # if message option is selected 
+  if(message == TRUE) {
+  # print a message for clarity 
+  message(str_interp("Percent of column '${catagory}' for '${target}'"))
+  }
+  # return the proportion of the target in the column of the data
+  return(length(which(df[catagory] == target))/nrow(df))
+}
+
+# test the function
+proportion_of(c.data, "race", "Asian/Pacific Islander", message = FALSE)
+```
+ R's summary has stated that Asian/Pacific Islander catagory has 1251 entries vs 97218. We will make sure we get the same result before moving on. 
+ 
+```{R Validate the "proportion_of" function - comparison, eval=FALSE, include=FALSE}
+
+# does the result of our function match a manual check
+proportion_of(c.data, "race", "Asian/Pacific Islander", message = FALSE) == 1251/97218
+```
+
+
+
+
+# get lists for the axes
+years = c(2012,2013,2014)
+year_counts <- c(deaths12, deaths13, deaths14)
+
+# plot the data 
+plot(years, year_counts, main = "Total Deaths by Year",ylim = c(32000,32750), xlab = "Year", axes = FALSE)
+
+# modify axes
+axis(side = 1, at = years)
+axis(side = 2, at = c(seq(32000, 32750, by = 250)))
+
+
+```{R Records of unknown intent, eval=FALSE, include=FALSE}
+
+# get a prop table on intent 
+prop.table(table(c.data$intent))
+```
+
+They make up a very small proportion of out dataset. We will isolate and remove them, updating the clean dataframe.
+```{R Remove records of unknown intent, eval=FALSE, include=FALSE}
+
+# isolate undetermined cases 
+undetermined <- which(c.data$intent == "Undetermined")
+
+# we will update the dataframe 
+c.data <- c.data[-undetermined, ]
+
+# remove the catagory "Undetermined"
+c.data$intent <- factor(c.data$intent)
+```
+
+We now have a set where all the intents are known and no values are missing.
+```{r eval=FALSE, include=FALSE}
+
+#plot(years, intent[1,], ylim = c(0.75*max(intent[1,]), 
+ #          1.25*max(intent[1,])), ylab = ("Accidental Deaths"), xlab = ("Year"))
+
+plot(years, intent[1,], ylim = c(0.75*max(intent[1,]),
+           1.25*max(intent[3,])), ylab = ("Accidental Deaths"), xlab = ("Year"), type = "line", col = "green")
+
+lines(years, intent[2,], col = "red")
+lines(years, intent[3,], col = "blue")
+
+```
+
+
+
+
+```{r eval=FALSE, include=FALSE}
+
+library(ggplot2)
+library(reshape2)
+#dfm <- melt(intent)
+df <- melt(intent)  #the function melt reshapes it from wide to long
+df$rowid <- colnames(intent) #add a rowid identifying variable
+ggplot(df, aes(variable, value, group=factor(rowid))) + geom_line(aes(color=factor(rowid)))
+```
+
+
+```{r eval=FALSE, include=FALSE}
+
+by_year = as.data.frame(transform(years))
+by_year = cbind(byd,year_counts)
+colnames(by_year) <- c("Year", "Deaths")
+
+other <- data.frame(Year = c(2012, 2013, 2014) , Deaths= c(32150, 32175, 32330))
+
+
+ggplot(data = by_year, aes(y = Deaths, x = Year)) + geom_line(color = "blue")+ ylim(32100,32750) +
+  geom_line(data = other, color = "red")
+
+#+ ylim(32100,32750)
+#  geom_line(data = other, color = "red")
+  
+```
+
+
+# Enter the Machines 
+
+Fortunately and unfortunately, our dataset it very large, so we will experiment with a subset of it. We'll shoot for around 1/5th of it. Keep in mind though, that's still 20k. For this we will import R's classic caret library and see how we do with a few machines. 
+
+
+
+
+
+
+
+
+
+
+### TO DO
+The Allergory of the police data
+```{r}
+
+y.police <- c.data[which(c.data$police == 1), ]
+n.police <- c.data[which(c.data$police == 0), ]
+
+length(which(is.na(y.police)))
+length(which(is.na(n.police)))
+
+```
+
+```{R Remove missing values}
+
+library(missForest)
+
+# make a copy of the data 
+c.data <- o.data
+
+#
+mf.data <- missForest(c.data, maxiter = 5, verbose = TRUE)
+summary(mf.data)
+c.data <- data.frame(mf.data$ximp)
+```
+

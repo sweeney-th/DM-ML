@@ -1,0 +1,352 @@
+---
+title: "A Drop in Gun Deaths in February?"
+subtitle: "Investigating a Curious Trend in CDC Gun Deaths 2012-2014"
+author: "Thadryan Sweeney"
+date: "April 15, 2018"
+output:
+    pdf_document: default
+---
+
+This set of gun deaths, collected mostly from the CDC, spans 2012, 2013, and 2014. I was initially interested in building a classifier to see if a machine could predict, with reasonable to strong accuracy, a person's race based on how they died with a gun (initial findings, somewhat eerily? Yes). But in familiarizing myself with the dataset, I noticed something. Each year showed a pronounced drop in gun deaths in February. At first I dismissed this, thinking it was due to the fact that it's the shortest month. It's also only three years of data. I took a look just the same and the findings are a bit unusual given the strength of the pattern. 
+
+First, we load the data and make sure Feb doesn't have a disproportionate amount of missing values, skewing my analysis. If Feb gun deaths were more poorly documented, for instance, that might be why (I used a random forest imputation strategy in my analysis and wanted to make sure any errors in this weren't the cause of the issue). We will use the raw data.
+
+Non-coders, fear not: there are written language chunks between each block, and yellow lines following a "#" explain what happens at each step.
+
+```{R Preparation}
+
+# some tools for generating pretty output
+library("kableExtra")
+library("knitr")
+```
+
+We will check to see if there is a difference if proportions of "Feb" entries with missing values vs complete values. 
+
+```{R Get Data, Inspect Missing Values}
+
+# get the data
+d <- read.csv("full_data.csv")
+
+# complete data - omit all rows missing something 
+c.d <- na.omit(d)
+
+# proportions of deaths in raw data by month
+prop.table(table(d$month))
+
+# proportions of Feb deaths in complete data by month
+prop.table(table(c.d$month))
+```
+We see proportions of 0.07036846 vs 0.07039739 for month 2. Feb makes up almost exactly as much of the dataset with or without missing records. So we can probably lay that to rest.
+
+## Visual Analysis 
+
+We'll now visualize the data for Feb. This is where I started to get suspicious:
+
+```{R Plot the Deaths by Month}
+
+library(ggplot2)
+library(reshape2)
+
+# frame the data by year 
+data12 <- d[which(d$year == "2012"), ]
+data13 <- d[which(d$year == "2013"), ]
+data14 <- d[which(d$year == "2014"), ]
+
+# extract month data 
+d12 <- data.frame(summary(as.factor(data12$month)))
+d13 <- data.frame(summary(as.factor(data13$month)))
+d14 <- data.frame(summary(as.factor(data14$month)))
+
+# set months
+month <- c(1,2,3,4,5,6,7,8,9,10,11,12)
+
+# make a new dataframe of deaths per month
+month.data <- cbind(month,d12,d13,d14)
+
+# set new names 
+colnames(month.data) <- c("month", "2012","2013","2014")
+
+# inspect the deaths/month data
+kable(month.data) %>% 
+  kable_styling(position = "center", full_width = TRUE) %>% 
+  row_spec(0, bold = TRUE) %>%
+  row_spec(2, bold = TRUE, color = "blue")
+
+# melt the dataframe for easy visualization 
+month.data <- melt(month.data, id.vars = "month")
+
+# plot the results on a line graph
+ggplot(month.data, aes(month,value, col =  variable)) + 
+  geom_line() +
+  # set x and y limits 
+  scale_y_continuous(limits = c(2250,3250), breaks = seq(2250, 3250, by = 250)) +
+  scale_x_continuous(breaks = seq(1,12, by = 1))
+```
+
+There is a very obvious drop in Feb. This persists in an obvious way even when the scale of the graph is changed. Is it only due to the fact that it is the shortest month? 
+
+## Numeric Analysis
+
+To investigate, we will find the average death per day and use that to estimate what the Feb deaths would look like if they were normal.
+
+```{R Add Months and Days}
+
+# vector of months by name 
+months <- c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+
+# list of days in months
+days   <- c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+
+# restructure the dataframe to have days per month 
+month.data <- cbind(months, days, d12, d13, d14)
+
+# set the names 
+colnames(month.data) <- c("month","days","d12","d13","d14")
+
+# look at the data
+kable(month.data) %>% 
+  kable_styling(position = "center", full_width = TRUE) %>% 
+  row_spec(0, bold = TRUE) %>%
+  row_spec(2, bold = TRUE, color = "blue")
+```
+
+We now have a dataframe where we can make a prediction of what the values would be if they simply followed the number of deaths per day. 
+
+Let's find the deaths per day:
+
+```{R Deaths Per Day}
+
+# get deaths per day by year
+d.per.day12 <- sum(month.data$d12)/365
+d.per.day13 <- sum(month.data$d13)/365
+d.per.day14 <- sum(month.data$d14)/365
+
+# gun deaths per day in this data set
+d.per.day <- mean(c(d.per.day12 , d.per.day13 , d.per.day14))
+
+# show information by year
+# 2012
+d.per.day12
+# 2013
+d.per.day13
+# 2013
+d.per.day14
+
+# deaths per day
+d.per.day
+```
+
+Now we can simply multiply the number of days days in the month times the average deaths per day to see what it would be if it was following the trend. We'll call this the "expected" value. We will add another value called "diff.exp" that shows how far off from the expectation the reality is (the "reality"" being the average of the actual observations for that month)
+
+
+```{R Expected vs Reality}
+
+# iterate by rows 
+for(i in 1:nrow(month.data)) {
+  
+  # the "expect" column is the number of days times the average per day 
+  month.data$expected[i]  <- month.data$days[i] * d.per.day
+  
+  # add "reality" - average of actual observations from each year in that month
+  month.data$reality[i] <- mean(c(month.data$d12[i] ,  month.data$d13[i] ,  month.data$d14[i]))
+  
+  # the "diff.exp" - difference from expected and the actual average 
+  month.data$dif.exp[i] <- month.data$reality[i] - month.data$expect[i]
+}
+
+# 2012 was a leap year so we will add the average once more to it 
+month.data$d12[2] <- month.data$d12[2] + d.per.day
+
+# look at the data
+kable(month.data) %>% 
+  kable_styling(position = "center") %>% 
+  row_spec(0, bold = TRUE) %>%
+  row_spec(2, bold = TRUE, color = "blue")
+```
+
+We now have a table of the expected values based on the average, as well as the difference between the expected and actual averages.
+
+February is still looking pretty weird. To increase the rigor of our poking around, we will look at the z-scores. We will now add a column representing the z-score of the "diff.expected" column. We will also re-frame the data so that only the columns we currently need are displayed so it's obvious whats going on. Typically z-scores of either +/- 3.0 or +/- 1.5 are used as starting points in outlier detection.
+
+```{R Z-scores}
+
+# we will see how differs in expected 
+month.data$z.expected <- scale(month.data$expected)
+
+# frame the most relevant stats
+feb.variance <- month.data[, c("month","expected","reality", "dif.exp","z.expected")]
+
+# look at the data
+kable(month.data) %>% 
+  kable_styling(position = "center") %>% 
+  row_spec(0, bold = TRUE) %>%
+  row_spec(2, bold = TRUE, color = "blue")
+```
+
+Feb's weirdness holds up pretty well to this test as well, clocking in with -2.64 (I didn't use absolute value so I could see which direction we were going in). This comfortably surpass the 1.5 threshold and approaches the 3.0. Which to use requires some discretion and context.
+
+The next largest score deviations are around 0.64, less than a quarter of Feb's. None of them make it even half-way to 1.5, a solid case that 1.5 is more appropriate that 3.0. It appears by this measure, Feb is very much abnormal. If we go with 3.0 (which doesn't seem as contextually appropriate), it still certainly seems odd enough to warrant further investigation. We'll trying sidestepping some of this uncertainty about the relative appropriateness by using quartiles.
+
+
+```{R Quartiles of the dif.exp feature}
+
+# make a boxplot of the dif.exp
+summary(month.data$dif.exp)
+```
+
+This gives an inter-quartile range of:
+
+```{R IQR}
+
+# the interquartle range:
+IQR <- IQR(month.data$dif.exp)
+```
+
+One formal definition of outlier is a number found outside a certain range, defined as follows:
+
+####  low end: Q1 - (1.5 x IQR) 
+#### high end: Q3 + (1.5 x IQR)
+
+```{R Create Range from IQR}
+
+# get the summary data 
+quartiles <- as.vector(summary(month.data$dif.exp))
+
+# get first and third quartiles 
+firstQ <- quartiles[2]
+thirdQ <- quartiles[5]
+
+# lower end of formal outlier range
+low <- firstQ - (1.5 * IQR)
+
+# higher end of the formal outlier range
+high <- thirdQ + (1.5 * IQR)
+
+low
+high
+```
+
+At -213.14977, Feb is not an outlier by this definition (though there is no once-and-for-all definition). This seems in keeping with R's boxplot function which a similar method to determine ranges and puts February right at the extreme but not over it:
+
+```{R Boxplot}
+
+# create a boxplot of dif.exp
+boxplot(month.data$dif.exp)
+```
+
+Let's see if the types of death (as measured by the "intent" feature) change. 
+
+```{R Intent of Death in Feb}
+
+# intent proportions in general data 
+prop.table(table(d$intent))
+
+# frame data without Feb
+non.feb.data <- d[which(d$month != 2), ]
+prop.table(table(non.feb.data$intent))
+
+# frame data as only Feb
+feb.data <- d[which(d$month == 2), ]
+prop.table(table(feb.data$intent))
+```
+
+There is a slight shift in the proportions, with homicide decreasing and suicide increasing, but nothing as sharp as the deviation itself. Still, we will look at homicides. 
+
+```{R Homicides}
+
+library(ggplot2)
+library(reshape2)
+
+# frame the data by year 
+data12 <- na.omit(d[which(d$year == "2012"), ])
+data13 <- na.omit(d[which(d$year == "2013"), ])
+data14 <- na.omit(d[which(d$year == "2014"), ])
+
+
+# extract month data 
+d12 <- data.frame(summary(as.factor(data12$intent)))
+d13 <- data.frame(summary(as.factor(data13$intent)))
+d14 <- data.frame(summary(as.factor(data14$intent)))
+
+# set months
+#month <- c(1,2,3,4,5,6,7,8,9,10,11,12)
+
+# make a new dataframe of deaths per month
+intent.data <- cbind(d12,d13,d14)
+
+# set new names 
+colnames(intent.data) <- c("2012","2013","2014")
+
+# inspect the deaths/month data
+kable(intent.data) %>% 
+  kable_styling(position = "center", full_width = TRUE) %>% 
+  row_spec(0, bold = TRUE)
+```
+
+```{R Homicides non.feb}
+
+library(ggplot2)
+library(reshape2)
+
+# frame the data by year 
+non.feb.data12 <- na.omit(d[which(d$year == "2012"), ])
+non.feb.data13 <- na.omit(d[which(d$year == "2013"), ])
+non.feb.data14 <- na.omit(d[which(d$year == "2014"), ])
+
+
+# extract month data 
+d12 <- data.frame(summary(as.factor(non.feb.data12$intent)))
+d13 <- data.frame(summary(as.factor(non.feb.data13$intent)))
+d14 <- data.frame(summary(as.factor(non.feb.data14$intent)))
+
+# set months
+#month <- c(1,2,3,4,5,6,7,8,9,10,11,12)
+
+# make a new dataframe of deaths per month
+non.feb.intent.data <- cbind(d12,d13,d14)
+
+# set new names 
+colnames(non.feb.intent.data) <- c("2012","2013","2014")
+
+# inspect the deaths/month data
+kable(non.feb.intent.data) %>% 
+  kable_styling(position = "center", full_width = TRUE) %>% 
+  row_spec(0, bold = TRUE)
+```
+
+
+I should probably just use apply abd overwite the whole thing
+```{R Intent Z-scores}
+
+intent.data$z12 <- 0
+intent.data$z13 <- 0
+intent.data$z14 <- 0
+
+for(i in 1:nrow(intent.data)) {
+  intent.data[i,4:6] <- scale(as.numeric(intent.data[i,1:3]))
+}
+
+colnames(intent.data) <-c("d12", "d13","d14","z12", "z13", "z14")
+intent.data <- intent.data[, c("d12","z12","d13","z13","d14", "z14")]
+
+# inspect the deaths/month data
+kable(intent.data) %>% 
+  kable_styling(position = "center", full_width = TRUE) %>% 
+  row_spec(0, bold = TRUE)
+```
+
+With these modest Z scores, it seems apparent that there is no particular type of gun death that accounts for this, rather a general drop across the board. 
+
+# Conclusion
+
+After all this I'm considering February "suspicious", and doing some further investigation. 
+
+A little online browsing reveals the following:
+
+https://chicago.suntimes.com/news/chicago-gun-violence-february/
+
+https://www.usatoday.com/story/news/2018/03/01/murders-shootings-down-chicago-1st-two-months-2018/385074002/
+
+but nothing close to the time-frame of the original dataset or on a scale larger than a major city. It does however, make me wonder if the pattern held true in 2018 and the years between 2014 and 2018.
+
+Have you heard anything about this? What would you look at next?

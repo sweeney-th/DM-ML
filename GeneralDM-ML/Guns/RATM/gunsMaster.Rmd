@@ -1,0 +1,594 @@
+---
+title: "Rage and the Machines"
+subtitle: "A Machine Learning Approach to Analyzing Gun Violence in the US"
+author: "Thadryan Sweeney"
+date: "April 2, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+# Introduction 
+
+ "year"     
+ "month"     
+ "intent"    
+ "police"   
+ "sex"      
+ "age"     
+ "race"    
+ "hispanic" 
+ "place"    
+ "education"
+
+# Exploring the Dataset
+
+```{R Collecting and Inspecting the Data}
+
+# original 
+o.data <- read.csv("rfImputedGunData.csv")
+
+# print out a summary and a list of catagories in each columns 
+str(o.data)
+
+# print out names and levels (skip ID)
+message("Column names and their levels")
+for( i in 2:ncol(o.data)) {
+  if((i != 7) & (i != 9)) { # skip lines we don't need
+    message(names(o.data[i]))
+    print(levels(as.factor(o.data[,i])))
+  }
+}
+```
+
+## Basic Summary of Original Data
+```{R Basic summary}
+
+# get a summary of the working data 
+summary(o.data)
+```
+
+# Managing the Dataset 
+
+Let's make a copy of the original data (in case we want to look back at it) to clean up into our working data. 
+
+We don't need the case ID number "X", it's just the row number, we'll start by getting rid of that. (Classification of hispanic)
+
+```{R Copy and start to prepate the dataset}
+
+# copy to raw data 
+data <- o.data
+
+# remove X
+data$X <- NULL
+
+# remove seprate classifications of hispanic 
+data$hispanic <- NULL
+```
+
+
+# Basic Proportions
+
+## Proportions by Year
+
+Let's get a sense of the makeup of the dataset. We will work our way through the variables
+
+```{R Proportions by Year}
+
+# visualization libraries 
+library(ggplot2)
+library(reshape2)
+library(kableExtra)
+
+# how are deaths distributed over the three years of the dataset?
+prop.table(table(data$year))
+
+# chart the deaths by year
+ggplot(data, aes(x = factor(1), fill = factor(year)))    + 
+                                geom_bar(width = 1)      + 
+                                coord_polar(theta = "y") +
+                                scale_fill_hue(l = 45, c = 55)
+```
+
+The output shows a nearly perfect split between the three years. 
+## Proportions by Month
+```{R Proportions by Month}
+
+# what proportions of the deaths by month
+prop.table(table(data$month))
+
+ggplot(data, aes(month)) + geom_bar(fill = "purple")
+```
+
+As with the years, the datset is divded fairly evenly by month save February. While February is the shortest month, it is not apparent if that is enough to explain the discrepancy. We'll talk more about it the appendix. 
+
+####Also I need to fix the x axis on this guy.
+
+## Proportions by Intent
+```{R Proportions by Intent}
+
+# what proportions of the deaths are homicide?
+prop.table(table(data$intent))
+
+# chart the deaths by intent - barplot
+ggplot(data, aes(intent)) + geom_bar(fill = "purple")
+
+# pie chart 
+ggplot(data, aes(x = factor(1), fill = factor(intent)))  + 
+                                geom_bar(width = 1)      + 
+                                coord_polar(theta = "y") +
+                                scale_fill_hue(l = 45, c = 55)
+```
+
+This is more revealing. The scuicide catagory make up a dominant majority over the other catagories. 
+
+## Proportions by Police
+
+Let's look at police involvment:
+
+```{R Chart of Deaths by Police}
+
+# what are the proportions of police involved shootings
+prop.table(table(data$police))
+
+# char the deaths by intent 
+ggplot(data, aes(x = factor(1), fill = factor(police)))  + 
+                                geom_bar(width = 1)      + 
+                                coord_polar(theta = "y") +
+                                scale_fill_hue(l = 45, c = 55)
+```
+
+Police involved shootings make up just under 2% of the dataset. 
+
+## Proportions by Sex
+```{R Proportions by Sex}
+
+# what are the proportions of the dataset by sex
+prop.table(table(data$sex))
+
+# chart the deaths by sex - bar plot
+ggplot(data, aes(sex)) + geom_bar(fill = "purple") 
+
+# pie chart 
+ggplot(data, aes(x = factor(1), fill = factor(sex)))     + 
+                                geom_bar(width = 1)      + 
+                                coord_polar(theta = "y") +
+                                scale_fill_hue(l = 45, c = 55)
+```
+
+The majority of the entries in the dataset are of of type "Male".
+
+## Proportions by Age
+```{R Proportions by Age}
+
+# chart the deaths by intent 
+prop.table(table(data$age))
+ggplot(data, aes(age)) + geom_bar(fill = "black") + 
+                         scale_x_continuous(breaks = round(seq(min(data$age), max(data$age), by = 5),1)) 
+```
+```{R Age In Ranges}
+
+# create ranges 
+data$age_range[data$age >=  0 & data$age <= 15 ] <- "0-14"
+data$age_range[data$age >= 15 & data$age <= 20 ] <- "15-19"
+data$age_range[data$age >= 20 & data$age <= 29 ] <- "20-29"
+data$age_range[data$age >= 30 & data$age <= 39 ] <- "30-39"
+data$age_range[data$age >= 40 & data$age <= 49 ] <- "40-49"
+data$age_range[data$age >= 50 & data$age <= 59 ] <- "50-59"
+data$age_range[data$age >= 60                  ] <- "60+"
+
+ggplot(data, aes(age_range)) + geom_bar(fill = "purple")
+```
+47 2012     6      Suicide      0   M 39.00000 White            Home          BA+      <NA>
+48 2012     7     Homicide      0   M 59.00000 White            Home       HS/GED      <NA>
+
+## Proportions by Race
+```{R Proportions by Race}
+
+# what are the proportions of the dataset by race?
+prop.table(table(data$race))
+
+# chart the deaths by race 
+ggplot(data, aes(x = factor(1), fill = factor(race)))    + 
+                                geom_bar(width = 1)      + 
+                                coord_polar(theta = "y") +
+                                scale_fill_hue(l = 45, c = 55)
+```
+
+## Proportions by Place
+```{R Proportions by Place}
+
+# what are the proportions of the dataset by place?
+prop.table(table(data$place))
+
+# chart the deaths by race 
+ggplot(data, aes(place)) + geom_bar(fill = "navy") + scale_x_discrete(labels = abbreviate)
+```
+
+This will be the subject of further investigation, with and without machine approaches, later in the report.
+
+ggplot(data = UFFI,aes(Year_Sold, Sale_Price))+geom_bar(aes(fill=UFFI_contain),stat="identity",position = "dodge")
+
+# Data by the Year
+
+We will not dwell for too long on the year; out initial investigations into the proportions of the dataset suggest that will be pretty consistent. Still, in the name of due dilligence and potentially identifiying emerging trends, we will look at some summary tables and charts.  
+
+```{R More Trends by Year}
+
+# get dataframes by year
+data12 <- data[which(data$year == "2012"), ]
+data13 <- data[which(data$year == "2013"), ]
+data14 <- data[which(data$year == "2014"), ]
+```
+
+## Month by Year
+
+Let's look at a simple numeric table of deaths from year to year in the dataset
+```{R Month}
+
+# 2012 months
+summary(as.factor(data12$month))
+# 2013 months
+summary(as.factor(data13$month))
+# 2014 months 
+summary(as.factor(data14$month))
+```
+
+The output suggests that there isn't too much variations in the months from year to year. Let's make some visuals:
+
+```{R Months by Year}
+
+# extract month data 
+d12 <- data.frame(summary(as.factor(data12$month)))
+d13 <- data.frame(summary(as.factor(data13$month)))
+d14 <- data.frame(summary(as.factor(data14$month)))
+
+# set months
+month <- c(1,2,3,4,5,6,7,8,9,10,11,12)
+month.data <- cbind(month,d12,d13,d14)
+colnames(month.data) <- c("month", "2012","2013","2014")
+
+# make a new dataframe 
+month.data <- melt(month.data, id.vars = "month")
+
+# plot the results on a line graph
+ggplot(month.data, aes(month,value, col =  variable)) + 
+  geom_line() +
+  # set x and y limits 
+  scale_y_continuous(limits = c(2250,3250), breaks = seq(2250, 3250, by = 250)) +
+  scale_x_continuous(breaks = seq(1,12, by = 1))
+```
+
+There appears to be a drop in the deaths during February. Some investigation suggest that it being the shortest month doesn't entirely explain this. We will talk about this in the appendix. 
+
+## Define Chart Function to Format Numeric data 
+
+To save time we will write a generic chart function to make kable charts from data in the the data12, data13, data14 dataframes.
+
+```{R Generic Cable Chart Function}
+
+# define a chart data 
+chart_data <- function(catagory) 
+{
+  # collect education summaries 
+  d12 <- as.data.frame(summary((data12[,catagory])))
+  d13 <- as.data.frame(summary((data13[,catagory])))
+  d14 <- as.data.frame(summary((data14[,catagory])))
+
+  # frame and name education data 
+  chart.data <- cbind(d12, d13, d14)
+
+  colnames(chart.data) <- c("2012","2013","2014")
+
+  # chart education data 
+  kable(chart.data) %>% 
+    kable_styling(position = "center", full_width = TRUE) %>% 
+    row_spec(0, bold = TRUE)
+}
+```
+
+
+## Intent by Year
+```{R Intent}
+
+chart_data("intent")
+```
+
+Shootings involving police are tagged as "1", those no are "0".
+
+
+```{R Police}
+
+# the function will take them as a factor 
+data12$police <- as.factor(data12$police)
+data13$police <- as.factor(data13$police)
+data14$police <- as.factor(data14$police)
+
+# chart the data 
+chart_data("police")
+```
+
+There is a slight increase in suicides and a slight decrease in homicides. 
+
+## Race by Year
+```{R Race by Year}
+
+# chart race
+chart_data("race")
+```
+
+Guns deaths of the catagory "Black" decrease slightly while the others seem to remain steady. There is not enough information to know if this is normal variation or part of a larger trend. 
+
+## Sex by Year
+```{R Sex by Year}
+
+chart_data("sex")
+```
+
+There was a slight increase in female deaths in this time period, though there is not enough information to know if this is normal variation or part of a larger trend. 
+
+## Age by Year
+```{R Age by Year}
+
+# 2012 ages
+#summary(data12$age)
+# 2013 age 
+#summary(data13$age)
+# 2014 ages 
+#summary(data14$age)
+
+#data12$age_range <- as.factor(data12$age_range)
+#data13$age_range <- as.factor(data13$age_range)
+#data14$age_range <- as.factor(data14$age_range)
+
+
+
+# chart_data("age_range") # what the actual fuck 
+```
+
+## Place by Year
+```{R Place by Year}
+
+# call our function 
+chart_data("place")
+```
+## Education by Year
+```{R - Education by Year}
+
+# call function on education
+chart_data("education")
+```
+
+No obvious trends manifest in the education level of the deaths. What are the the porportions of HS/GED in the general populatitiom?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Scrap Workspace
+
+
+ggplot(d, aes(month,d12, color = "blue")) + 
+  # add lines 
+  geom_line() + 
+  # add labels
+  scale_x_discrete(labels = abbreviate) +
+  # add 2013 and 2014 
+  geom_line(aes(month,d13, color = "green")) +
+  geom_line(aes(month,d14, color = "orange")) +
+  # add colors and labels 
+  scale_colour_manual(values=c("blue"="blue","green"="green","orange"="orange"), 
+    labels = c("2012","2013","2014"),
+    breaks=c("blue","green","orange")) +
+  # set axis scales 
+  scale_y_continuous(limits = c(2000, 3500))
+```{r}
+
+library(ggplot2)
+library(reshape2)
+
+# set months
+mon <- c(1,2,3,4,5,6,7,8,9,10,11,12)
+sd <- cbind(mon,d12,d13,d14)
+colnames(sd) <- c("month", "2012","2013","2014")
+
+# make a new dataframe 
+d <- melt(sd, id.vars = "month")
+
+# plot the results 
+ggplot(d, aes(month,value, col =  variable)) + 
+  geom_line()                                +
+  scale_y_continuous(limits = c(2250,3250), breaks = seq(2250, 3250, by = 250)) +
+  scale_x_continuous(breaks = seq(1,12, by = 1))
+```
+
+## proportion_of function
+```{R proportion_of() Function}
+
+# allows for string interpolation 
+library(stringr)
+
+# define th proportion of to act on df column and target to count 
+proportion_of <- function(df, catagory, target, message = TRUE)
+{
+  # if message option is selected 
+  if(message == TRUE) {
+  # print a message for clarity 
+  message(str_interp("Percent of column '${catagory}' for '${target}'"))
+  }
+  # return the proportion of the target in the column of the data
+  return(  length(which(df[catagory] == target))/nrow(df)  *100)
+}
+
+# test the function
+#print(proportion_of(data, "police", "1"))
+#print(proportion_of(data, "race", "Black"))
+
+
+```
+
+
+## Deaths besides suicides 
+```{R}
+
+
+ns.data <- data[which(data$intent != "Suicide"), ]
+p.data  <- data[which(data$police == 1), ]
+
+x <- proportion_of(data, "race", "Black")
+y <- proportion_of(p.data, "race", "Black")
+
+ns.data <- data[which(data$intent != "Suicide"), ]
+p.data  <- data[which(ns.data$police == 1), ]
+
+pie(prop.table(table(ns.data$race)))
+```
+
+```{R}
+
+# 
+ns.data <- data[which(data$intent != "Suicide"), ]
+
+# the dataset at large is simply "data"
+
+# data where police are involved 
+p.data  <- data[which(data$police == 1), ]
+
+# pie chart of racial composition
+#message("Dataset in general")
+pie(prop.table(table(data$race)))
+
+# pie chart of police data
+#message("Police Dataset")
+pie(prop.table(table(p.data$race)))
+
+# gun deaths with suicides removed
+pie(prop.table(table(ns.data$race)))
+```
+
+## this is the racial makeup I was given 
+Asian/Pacific Islander 5.25%
+White 65.39%
+Hispanic 14.79%
+Native American/Native Alaskan 1.24%
+Black 13.34%
+
+
+```{r}
+
+#message("Data removing suicide")
+#prop.table(table(data$race))
+#pie(prop.table(table(data$race)))
+
+
+message("Data removing suicide")
+#summary(ns.data$race)
+prop.table(table(ns.data$race))
+
+
+message("Data involving police")
+#summary(p.data$race)
+prop.table(table(p.data$race))
+```
+
+
+# What the fuck is up with february
+jan:31
+feb:28
+mar:31
+
+apr:30
+may:31
+jun:30
+
+jul:31
+aug:31
+sep:30
+
+oct:31
+nov:30
+dec:31
+
+2012 was leap year 
+
+
+```{R WTF is up with February}
+
+d12 <- data.frame(summary(as.factor(data12$month)))
+d13 <- data.frame(summary(as.factor(data13$month)))
+d14 <- data.frame(summary(as.factor(data14$month)))
+
+months <- c(1,2,3,4,5,6,7,8,9,10,11,12)
+days   <- c(31,28,31,30,31,30,31,31,30,31,30,31)
+dFebInv <- cbind(months, days, d12, d13, d14)
+
+colnames(dFebInv) <- c("month","days","d12","d13","d14")
+
+for(i in 1:ncol(dFebInv)) {
+  dFebInv$expect[i]  <- dFebInv$days[i] * 91.95342
+  dFebInv$dif.exp[i] <- (sum(dFebInv$d12[i] + dFebInv$d13[i] + dFebInv$d14[i])/3) - dFebInv$expect[i]
+}
+dFebInv$z <- scale(dFebInv$expect)
+head(dFebInv, n=12)
+```
+
+
+
+
+# create a plot starting with 2012
+ggplot(d, aes(month,d12, color = "blue")) + 
+  # add lines 
+  geom_line() + 
+  # add labels
+  scale_x_discrete(labels = abbreviate) +
+  # add 2013 and 2014 
+  geom_line(aes(month,d13, color = "green")) +
+  geom_line(aes(month,d14, color = "orange")) +
+  # add colors and labels 
+  scale_colour_manual(values=c("blue"="blue","green"="green","orange"="orange"), 
+    labels = c("2012","2013","2014"),
+    breaks=c("blue","green","orange")) +
+  # set axis scales 
+  scale_y_continuous(limits = c(2000, 3500))
+
+
+(mean(sum(d$d12), sum(d$d13), sum(d$d14))/365) * (28)
+
+
+```{R}
+months <- c(1,2,3,4,5,6,7,8,9,10,11,12)
+d <- cbind(months, d12, d13, d14)
+
+colnames(d) <- c("month", "d12","d13","d14")
+
+# create a plot starting with 2012
+ggplot(d, aes(month,d12, color = "blue")) + 
+  # add lines 
+  geom_line() + 
+  # add labels
+  scale_x_discrete(labels = abbreviate) +
+  # add 2013 and 2014 
+  geom_line(aes(month,d13, color = "green")) +
+  geom_line(aes(month,d14, color = "orange")) +
+  # add colors and labels 
+  scale_colour_manual(values=c("blue"="blue","green"="green","orange"="orange"), 
+    labels = c("2012","2013","2014"),
+    breaks=c("blue","green","orange")) +
+  # set axis scales 
+  scale_y_continuous(limits = c(2000, 3500))
+
+
+#mean(sum(d$d12), sum(d$d13), sum(d$d14))/365
+```

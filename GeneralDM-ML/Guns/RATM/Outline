@@ -1,0 +1,24 @@
+### Rage and the Machines outline 
+
+# Introduciton 
+
+comments on the data and a description of the imputation 
+
+# Basic Proportions and epidemiology 
+
+ "year" "month" "intent"   "police" "sex"      
+ "age"  "race"  "hispanic" "place"  "education"
+ 
+ Takeaway: Suicides, Men
+ 
+# The data by year
+Q: Are there obvious changes from year to year in this dataset?
+Takeaway: steady, steady, steady save february
+ 
+# In Depth look at Intent
+Q: Why are the prevailing intents behind gun deaths?
+
+Takeaway: Homicides - black, suicides
+
+# In depth look at Education 
+Q: Do lower levels of education corrrespond to high rates of deaths
